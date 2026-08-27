@@ -27,6 +27,7 @@ namespace DreidelRoyale.Net
         public const string Skin        = "SKIN";
         public const string Vote        = "VOTE";
         public const string Heartbeat   = "HB";
+        public const string Chat        = "CHAT";
     }
 
     /// <summary>
@@ -57,6 +58,9 @@ namespace DreidelRoyale.Net
 
         // START_COUNT / VOTE
         public string env;
+
+        // CHAT
+        public string text;
 
         public static NetMsg Of(string t) { return new NetMsg { type = t }; }
 

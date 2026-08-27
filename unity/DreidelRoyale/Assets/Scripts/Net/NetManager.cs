@@ -45,6 +45,8 @@ namespace DreidelRoyale.Net
         List<string> _hostOrder = new List<string>();
         NetState _prevSnapshot;
 
+        public readonly ChatSystem Chat = new ChatSystem();
+
         readonly Dictionary<INetPeer, float> _lastSeen = new Dictionary<INetPeer, float>();
         Coroutine _heartbeat, _reconnectTimer, _autoTakeover, _lossCountdown;
 
@@ -87,6 +89,7 @@ namespace DreidelRoyale.Net
             if (IsHost) BroadcastRaw(NetMsg.Of(MsgType.HostEnd));   // tell the table before going
             _connections.Clear();
             _lastSeen.Clear();
+            Chat.Clear();
             _conn = null;
             IsHost = false; IsObserver = false;
             _hostEnded = false; _reconnecting = false; _takeoverInProgress = false;
@@ -169,6 +172,7 @@ namespace DreidelRoyale.Net
                 // don't delete players mid-game - keep their seat so they can reconnect
                 gone.Disconnected = true;
                 UI.Toast(gone.Name + " dropped - seat held for reconnect", true);
+                Chat.AddNotice(gone.Name + " dropped");
                 var cur = GC.G.Current;
                 if (cur != null && cur.Id == peer.Id) AdvanceTurnPastDisconnected();
             }
@@ -280,6 +284,7 @@ namespace DreidelRoyale.Net
 
                     var name = UniqueName(wantName);
                     var token = Guid.NewGuid().ToString("N").Substring(0, 10);
+                    Chat.AddNotice(name + " joined the table");
                     GC.G.Players.Add(new Player(c.Id, name, Consts.StartCoins)
                     {
                         Skin = Unlocks.ValidSkin(d.skin) ? d.skin : "wood",
@@ -312,6 +317,19 @@ namespace DreidelRoyale.Net
                     var cur = GC.G.Current;
                     if (GC.G.Status == GameStatus.Playing && cur != null && cur.Id == c.Id)
                         GC.ExecutePhysicsSpin(d.power);
+                    break;
+                }
+
+                case MsgType.Chat:
+                {
+                    if (!Chat.Allow(c.Id)) return;              // one voice, not a flood
+                    var body = ChatSystem.Sanitise(d.text);
+                    if (body == null) return;
+                    // The name comes from the seat, never from the message, so nobody can put
+                    // words in someone else's mouth. A speaker with no seat is an observer.
+                    var seat = GC.G.Players.FindIndex(p => p.Id == c.Id);
+                    var who = seat >= 0 ? GC.G.Players[seat].Name : "Observer";
+                    RelayChat(who, body, seat);
                     break;
                 }
             }
@@ -356,6 +374,10 @@ namespace DreidelRoyale.Net
                 case MsgType.StartCount:
                     if (!string.IsNullOrEmpty(d.env)) GC.ApplyEnv(d.env);
                     GC.StartCoroutine(GC.Countdown(null));
+                    break;
+
+                case MsgType.Chat:
+                    Chat.Receive(d.name, d.text, Mathf.RoundToInt(d.delta));
                     break;
 
                 case MsgType.HostEnd:
@@ -433,6 +455,28 @@ namespace DreidelRoyale.Net
         public void SendSpinRequest(float power)
         {
             Send(new NetMsg { type = MsgType.ActionSpin, power = power });
+        }
+
+        /// <summary>Say something at the table. Guests ask; the host is the one who relays.</summary>
+        public void SayChat(string text)
+        {
+            var body = ChatSystem.Sanitise(text);
+            if (body == null) return;
+            if (IsHost)
+            {
+                if (!Chat.Allow("HOST")) return;
+                var seat = GC.G.Players.FindIndex(p => p.Id == MySeatId);
+                RelayChat(seat >= 0 ? GC.G.Players[seat].Name : MyName, body, seat);
+            }
+            else Send(new NetMsg { type = MsgType.Chat, text = body });
+        }
+
+        void RelayChat(string who, string body, int seat)
+        {
+            var msg = new NetMsg { type = MsgType.Chat, name = who, text = body };
+            msg.delta = seat;                     // seat index rides along for the avatar colour
+            BroadcastRaw(msg);
+            Chat.Receive(who, body, seat);        // the host shows its own relay too
         }
 
         public void SendSkin(string skin) { Send(new NetMsg { type = MsgType.Skin, skin = skin }); }

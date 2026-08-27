@@ -31,6 +31,7 @@ namespace DreidelRoyale
         ArController _ar;
         NetManager _net;
         NetUI _netUi;
+        UI.ChatPanel _chat;
 
         void Awake()
         {
@@ -153,8 +154,13 @@ namespace DreidelRoyale
             _gc.Net = _net;
             _ui.NetScreens = _netUi;
 
+            _chat = mgr.AddComponent<UI.ChatPanel>();
+            _chat.UI = _ui; _chat.Net = _net;
+            _ui.Chat = _chat;
+
             _ui.Build(canvas);
             _netUi.Build(_ui.Root);
+            _chat.Build(_ui.Root);
         }
 
         void BuildAr()

@@ -55,6 +55,9 @@ namespace DreidelRoyale.UI
         /// <summary>The networking screens, when multiplayer is present.</summary>
         public DreidelRoyale.Net.NetUI NetScreens;
 
+        /// <summary>Table talk. Only reachable at a networked table.</summary>
+        public ChatPanel Chat;
+
         // ---- AR ----
         public DreidelRoyale.AR.ArController Ar;
         Text _arLabel, _arSub, _arWhy, _arBoardLabel, _arHint;
@@ -715,6 +718,8 @@ namespace DreidelRoyale.UI
             else if (id == "landing") RefreshResumeButton();
             else if (id == "net-name" && NetScreens != null) NetScreens.OnNameScreenShown();
 
+            if (Chat != null) Chat.SetAvailable(id == "net-lobby" && GC.Net != null && GC.Net.Active);
+
             RectTransform rt;
             if (_screens.TryGetValue(id, out rt)) StartCoroutine(ScreenIn(rt));
         }
@@ -750,6 +755,7 @@ namespace DreidelRoyale.UI
             if (NetScreens != null) NetScreens.HideReconnect();
             Current = "game";
             Hud.Show(true);
+            if (Chat != null) Chat.SetAvailable(GC.Net != null && GC.Net.Active);
         }
 
         public void TogglePause()

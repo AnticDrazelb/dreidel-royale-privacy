@@ -84,6 +84,8 @@ namespace UnityEngine.UI
         public string text; public Text textComponent; public Graphic placeholder;
         public int characterLimit;
         public UnityEngine.Events.UnityEvent<string> onValueChanged, onEndEdit;
+        public void ActivateInputField() {}
+        public void DeactivateInputField() {}
     }
     public class Canvas : UnityEngine.Behaviour {
         public RenderMode renderMode; public bool pixelPerfect; public float scaleFactor;
@@ -97,6 +99,14 @@ namespace UnityEngine.UI
         public enum ScreenMatchMode { MatchWidthOrHeight, Expand, Shrink }
     }
     public class GraphicRaycaster : UnityEngine.Behaviour {}
+    public class Mask : UnityEngine.EventSystems.UIBehaviour { public bool showMaskGraphic; }
+    public class ScrollRect : UnityEngine.EventSystems.UIBehaviour {
+        public RectTransform content, viewport;
+        public bool horizontal, vertical;
+        public float scrollSensitivity, verticalNormalizedPosition, horizontalNormalizedPosition;
+        public MovementType movementType;
+        public enum MovementType { Unrestricted, Elastic, Clamped }
+    }
     public class LayoutGroup : UnityEngine.EventSystems.UIBehaviour {
         public RectOffset padding; public TextAnchor childAlignment;
     }
