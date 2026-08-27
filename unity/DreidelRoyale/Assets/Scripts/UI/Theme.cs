@@ -90,6 +90,7 @@ namespace DreidelRoyale.UI
             s = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
                               SpriteMeshType.FullRect, new Vector4(r + 2, r + 2, r + 2, r + 2));
             SpriteCache[key] = s;
+            RadiusOf[s] = radius;
             return s;
         }
 
@@ -120,6 +121,35 @@ namespace DreidelRoyale.UI
                               SpriteMeshType.FullRect, new Vector4(r + 2, r + 2, r + 2, r + 2));
             SpriteCache[key] = s;
             return s;
+        }
+
+        // Every rounded sprite remembers the radius it was cut at, so a square twin can be
+        // found for it - and found again on the way back.
+        static readonly Dictionary<Sprite, float> RadiusOf = new Dictionary<Sprite, float>();
+        static readonly Dictionary<Sprite, Sprite> SquareOf = new Dictionary<Sprite, Sprite>();
+        static readonly Dictionary<Sprite, Sprite> RoundOf = new Dictionary<Sprite, Sprite>();
+
+        /// <summary>
+        /// The voxel-chrome swap: hand it a rounded sprite and get the square one back, or the
+        /// other way round. Anything it does not recognise comes back null and is left alone.
+        /// </summary>
+        public static Sprite Blockify(Sprite sprite, bool square)
+        {
+            if (sprite == null) return null;
+            if (square)
+            {
+                Sprite found;
+                if (SquareOf.TryGetValue(sprite, out found)) return found;
+                float radius;
+                if (!RadiusOf.TryGetValue(sprite, out radius)) return null;
+                var hard = Rounded(2f);          // a two-pixel corner still antialiases cleanly
+                if (hard == sprite) return null;
+                SquareOf[sprite] = hard;
+                RoundOf[hard] = sprite;
+                return hard;
+            }
+            Sprite back;
+            return RoundOf.TryGetValue(sprite, out back) ? back : null;
         }
 
         static float RoundedDist(float px, float py, float w, float h, float r)

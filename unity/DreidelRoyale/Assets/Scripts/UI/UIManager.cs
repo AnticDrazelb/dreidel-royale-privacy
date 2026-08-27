@@ -27,6 +27,7 @@ namespace DreidelRoyale.UI
         public FxLayer Fx;
         public EmberLayer Embers;
         public EnvFrameLayer Frame;
+        public FlatStage Flat;
 
         readonly Dictionary<string, RectTransform> _screens = new Dictionary<string, RectTransform>();
 
@@ -75,6 +76,11 @@ namespace DreidelRoyale.UI
             Root = canvas.GetComponent<RectTransform>();
 
             BuildBackdrop();
+
+            // The flat stage stands in for the diorama, so it sits behind everything else.
+            Flat = MakeGraphic<FlatStage>("flat-stage");
+            Flat.View = View; Flat.GC = GC;
+            Flat.Build();
 
             Embers = MakeGraphic<EmberLayer>("embers");
             Frame = MakeGraphic<EnvFrameLayer>("env-frame");
@@ -1037,6 +1043,7 @@ namespace DreidelRoyale.UI
             GC.MySkinChoice = id;
             Store.Set("drdl-skin", id);
             View.SetSkin(id);
+            RefreshChrome();       // the table and the dreidel together decide the chrome
         }
 
         /// <summary>
@@ -1059,6 +1066,45 @@ namespace DreidelRoyale.UI
         {
             if (Embers != null) Embers.SetEnv(env);
             if (Frame != null) Frame.SetEnv(env);
+            RefreshChrome();
+        }
+
+        /// <summary>
+        /// Two pairings change the whole look, and only when BOTH halves are chosen - the table
+        /// and the dreidel have to agree before the game commits to a different world.
+        ///
+        ///   Backyard + Blue Pup    -> the diorama gives way to the flat 2D playroom
+        ///   Blocky Biome + Grass   -> the UI squares off into voxel chrome
+        /// </summary>
+        public void RefreshChrome()
+        {
+            var env = GC.AppliedEnv ?? "";
+            var skin = GC.MySkinChoice ?? "";
+
+            bool flat = env == "backyard" && skin == "heeler";
+            if (Flat != null) Flat.SetActive(flat);
+
+            bool blocky = env == "blocky" && skin == "blocky";
+            SetBlockChrome(blocky);
+        }
+
+        bool _blockChrome;
+
+        /// <summary>
+        /// Voxel chrome: every rounded corner in the UI squares off. The panels were built with
+        /// nine-sliced sprites, so this is a sprite swap over the tree rather than a rebuild -
+        /// which also means it can be turned straight back off.
+        /// </summary>
+        void SetBlockChrome(bool on)
+        {
+            if (_blockChrome == on) return;
+            _blockChrome = on;
+            foreach (var img in Root.GetComponentsInChildren<Image>(true))
+            {
+                if (img.type != Image.Type.Sliced || img.sprite == null) continue;
+                var swapped = Theme.Blockify(img.sprite, on);
+                if (swapped != null) img.sprite = swapped;
+            }
         }
 
         public void SetDim(float a) { _dim.color = new Color(0, 0, 0, a); }

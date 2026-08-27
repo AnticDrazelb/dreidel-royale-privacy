@@ -58,6 +58,10 @@ namespace DreidelRoyale
             Prewarm(_gc.MySkinChoice);
             Prewarm("gold");
 
+            // The table was applied before the dreidel was chosen, so the pairing that decides
+            // the chrome is only knowable once both are settled.
+            _ui.RefreshChrome();
+
             // first run: show the rules before the first spin, exactly once
             if (Store.Get("drdl-seen") != "1") _ui.ShowHowTo();
         }

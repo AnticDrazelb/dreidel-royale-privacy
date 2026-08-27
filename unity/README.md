@@ -35,7 +35,7 @@ the code describing it.
 | `Audio/MusicEngine.cs` | the generative D freygish soundtrack |
 | `UI/` | the screens, the HUD, and the screen-space effect layers |
 | `AR/` | session, placement, gestures, and the world-unit corrections |
-| `Net/` | the wire protocol, the transport interface, LAN and Relay |
+| `Net/` | the wire protocol, the transport interface, LAN and Relay, chat |
 
 ## What carried over exactly
 
@@ -127,13 +127,12 @@ which is why it is the one that ships enabled.
 
 Called out plainly so nobody goes looking:
 
-- **Quick Match.** The web build advertises open tables through a set of well-known broker
-  slots. That is a PeerJS-specific trick with no LAN equivalent; discovery by room code covers
-  the same ground on a local network.
-- **Sharing and the store bridge.** The Web Share invite and result cards, and the Play
-  Billing hookup behind "Unlock Full Collection", are platform plumbing. The Full Collection
-  entitlement is stored and honoured; the button grants it locally so the premium dreidels can
-  be seen and played.
+- **The store bridge.** The Play Billing hookup behind "Unlock Full Collection" is platform
+  plumbing. The entitlement is stored and honoured; the button grants it locally so the premium
+  dreidels can be seen and played.
+- **The graphics tier picker.** Auto/High/Medium/Potato existed to keep a browser canvas
+  alive. Unity has its own quality settings, and the port targets a fixed tier instead.
+- **Deep-link joins and the rating prompt.** Both are store plumbing rather than game code.
 - **The WebGL survival machinery.** Context-loss recovery, renderer rebuilds and the graphics
   tier governor exist to keep a browser canvas alive. Unity has no analogue for them.
 
