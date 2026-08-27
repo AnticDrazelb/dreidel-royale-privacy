@@ -188,19 +188,35 @@ namespace DreidelRoyale.UI
         }
 
         /// <summary>A labelled on/off switch, as used in the pause menu.</summary>
+        /// <summary>
+        /// `hint` is a quieter second line under the label - room for the thing a switch needs
+        /// to say but shouldn't shout, without crowding the label into a wrap.
+        /// </summary>
         public static Toggle Switch(Transform parent, string label, bool on, Action<bool> onChange,
-                                    float width = 300f)
+                                    float width = 300f, string hint = null)
         {
+            bool twoLine = !string.IsNullOrEmpty(hint);
             var row = Node("switchRow", parent);
-            Rect(row).sizeDelta = new Vector2(width, 46f);
+            Rect(row).sizeDelta = new Vector2(width, twoLine ? 54f : 46f);
             var hl = row.AddComponent<HorizontalLayoutGroup>();
             hl.childForceExpandWidth = false; hl.childForceExpandHeight = true;
             hl.childAlignment = TextAnchor.MiddleLeft;
             hl.padding = new RectOffset(6, 6, 0, 0);
 
-            var lbl = Label(row.transform, label, 17, Theme.Text, TextAnchor.MiddleLeft);
-            var le = lbl.gameObject.AddComponent<LayoutElement>();
-            le.flexibleWidth = 1f;
+            var lblHost = Node("switchLabel", row.transform);
+            var lhl = lblHost.AddComponent<VerticalLayoutGroup>();
+            lhl.childAlignment = TextAnchor.MiddleLeft; lhl.spacing = 0f;
+            lhl.childForceExpandWidth = true; lhl.childForceExpandHeight = false;
+            lhl.childControlWidth = true; lhl.childControlHeight = true;
+            lblHost.AddComponent<LayoutElement>().flexibleWidth = 1f;
+
+            var lbl = Label(lblHost.transform, label, 17, Theme.Text, TextAnchor.MiddleLeft);
+            lbl.gameObject.AddComponent<LayoutElement>().preferredHeight = twoLine ? 22f : 44f;
+            if (twoLine)
+            {
+                var sub = Label(lblHost.transform, hint, 11, Theme.Sub, TextAnchor.MiddleLeft);
+                sub.gameObject.AddComponent<LayoutElement>().preferredHeight = 16f;
+            }
 
             var track = Node("track", row.transform);
             Rect(track).sizeDelta = new Vector2(52f, 28f);

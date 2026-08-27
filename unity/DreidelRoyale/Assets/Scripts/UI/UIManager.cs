@@ -501,15 +501,14 @@ namespace DreidelRoyale.UI
             {
                 Sfx.HapticsOn = v2; Store.Set("drdl-haptics", v2 ? "1" : "0");
             });
-            UIKit.Switch(col.transform, "Israel dreidel  <color=#8b93b8><size=10>(\u05E4 Po - else \u05E9 Sham)</size></color>",
-                         Consts.IsraelMode, v2 =>
+            UIKit.Switch(col.transform, "Israel dreidel", Consts.IsraelMode, v2 =>
             {
                 Consts.IsraelMode = v2;
                 Store.Set("drdl-israel", v2 ? "1" : "0");
                 Consts.RefreshSides();
                 View.RebuildLetters();
                 Sfx.Play("tick");
-            });
+            }, 300f, "\u05E4 Po - else \u05E9 Sham");
 
             UIKit.Spacer(col.transform, 6f);
             BuildArControls(col.transform);
