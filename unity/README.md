@@ -6,9 +6,14 @@ and sound design are quoted from the original rather than re-invented.
 
 ## Opening it
 
-1. Open `unity/DreidelRoyale` with Unity **2021.3 LTS** or newer (built-in render pipeline).
+1. Open **`unity/DreidelRoyale`** with Unity **6.3 LTS** (built-in render pipeline).
+   Not the repository root — the root is not a Unity project, and opening it there makes an
+   empty one with a `Library/` folder beside your git history.
 2. Open `Assets/Scenes/Main.unity` and press Play.
-3. For **Online** play only: link a project under *Edit → Project Settings → Services* and
+3. Run **Dreidel Royale → Configure for Android and iOS** once. Among other things it sets
+   *Active Input Handling* to **Both**, which this project requires: AR camera tracking needs
+   the Input System, and every control in the game reads the legacy one. Unity reloads after.
+4. For **Online** play only: link a project under *Edit → Project Settings → Services* and
    press **Create/Link**. It is free, it takes a minute, and Unity Relay reads the project id
    out of the build — without one, Online fails at the first step. *Same Wi-Fi* play,
    single-player and AR all work with no account at all.

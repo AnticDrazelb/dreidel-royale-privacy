@@ -41,6 +41,16 @@ namespace Unity.Services.Relay.Models
 namespace Unity.Services.Relay
 {
     using Unity.Services.Relay.Models;
+    using Unity.Networking.Transport.Relay;
+
+    /// Relay 1.1 exposes the conversion as extensions rather than RelayServerData constructors.
+    public static class RelayServiceExtensions
+    {
+        public static RelayServerData ToRelayServerData(this Allocation a, string connectionType)
+        { return default(RelayServerData); }
+        public static RelayServerData ToRelayServerData(this JoinAllocation a, string connectionType)
+        { return default(RelayServerData); }
+    }
 
     public class RelayService
     {
@@ -53,9 +63,9 @@ namespace Unity.Services.Relay
 
 namespace Unity.Networking.Transport
 {
-    public struct NetworkEndPoint
+    public struct NetworkEndpoint
     {
-        public static NetworkEndPoint AnyIpv4 { get { return default(NetworkEndPoint); } }
+        public static NetworkEndpoint AnyIpv4 { get { return default(NetworkEndpoint); } }
     }
 
     // In the real package these three are `ref this` extension methods returning
@@ -114,7 +124,7 @@ namespace Unity.Networking.Transport
         public bool Bound { get { return false; } }
         public bool Listening { get { return false; } }
         public NetworkPipeline CreatePipeline(params Type[] stages) { return default(NetworkPipeline); }
-        public int Bind(NetworkEndPoint endpoint) { return 0; }
+        public int Bind(NetworkEndpoint endpoint) { return 0; }
         public int Listen() { return 0; }
         public NetworkConnection Connect() { return default(NetworkConnection); }
         public NetworkConnection Accept() { return default(NetworkConnection); }
@@ -139,9 +149,5 @@ namespace Unity.Networking.Transport.Relay
 {
     using Unity.Services.Relay.Models;
 
-    public struct RelayServerData
-    {
-        public RelayServerData(Allocation allocation, string connectionType) { }
-        public RelayServerData(JoinAllocation allocation, string connectionType) { }
-    }
+    public struct RelayServerData { }
 }

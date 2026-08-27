@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -30,8 +31,8 @@ namespace DreidelRoyale.EditorTools
             // ---- identity ----
             PlayerSettings.companyName = "Antic Drazelb";
             PlayerSettings.productName = "Dreidel Royale";
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, BundleId);
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.iOS, BundleId);
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, BundleId);
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
             log.Add("identity: " + BundleId);
 
             // ---- presentation ----
@@ -58,6 +59,7 @@ namespace DreidelRoyale.EditorTools
 
             AssetDatabase.SaveAssets();
             Debug.Log("[Dreidel Royale] Platform setup:\n  - " + string.Join("\n  - ", log.ToArray()));
+            EnableBothInputBackends();
             Validate();
         }
 
@@ -66,20 +68,23 @@ namespace DreidelRoyale.EditorTools
             // ARCore requires API 24, and Play requires 64-bit, which means IL2CPP.
             PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)24;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
-            PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
             log.Add("android: minSdk 24, IL2CPP, ARMv7+ARM64");
 
-            // ARCore does not run under Vulkan on this AR Foundation line, and an auto graphics
-            // API list will happily pick Vulkan first on a modern phone - at which point AR
-            // simply never starts, with nothing in the log to say why.
+            // ARCore could not run under Vulkan until AR Foundation 5.1, which is why older
+            // guides tell you to pin OpenGLES3. On this line Vulkan works and is meaningfully
+            // faster, so it leads and GLES3 follows as the fallback for phones that lack it.
+            // The list is explicit rather than automatic because the automatic list has
+            // dropped GLES3 before, and a device with no fallback simply fails to start.
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
-            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
-            log.Add("android: graphics API pinned to OpenGLES3 (ARCore will not start under Vulkan)");
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,
+                new[] { GraphicsDeviceType.Vulkan, GraphicsDeviceType.OpenGLES3 });
+            log.Add("android: graphics APIs Vulkan then OpenGLES3");
 
             // Sockets and reflection-lite serialisation: keep stripping conservative.
-            PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.Android, ManagedStrippingLevel.Low);
-            PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.Android, ApiCompatibilityLevel.NET_Standard_2_0);
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Android, ManagedStrippingLevel.Low);
+            PlayerSettings.SetApiCompatibilityLevel(NamedBuildTarget.Android, ApiCompatibilityLevel.NET_Standard_2_0);
             log.Add("android: stripping Low, .NET Standard 2.0");
         }
 
@@ -87,8 +92,8 @@ namespace DreidelRoyale.EditorTools
         {
             // ARKit needs 11; 12 is the floor the current toolchain builds against anyway.
             PlayerSettings.iOS.targetOSVersionString = "12.0";
-            PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, ScriptingImplementation.IL2CPP);
-            PlayerSettings.SetArchitecture(BuildTargetGroup.iOS, 1);   // ARM64
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetArchitecture(NamedBuildTarget.iOS, 1);   // ARM64
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.iOS, false);
             PlayerSettings.SetGraphicsAPIs(BuildTarget.iOS, new[] { GraphicsDeviceType.Metal });
             log.Add("ios: target 12.0, IL2CPP, ARM64, Metal");
@@ -103,8 +108,8 @@ namespace DreidelRoyale.EditorTools
             // AR is a feature, not a requirement: the app must still install and play on a
             // device with no ARKit.
             PlayerSettings.iOS.requiresFullScreen = true;
-            PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, ManagedStrippingLevel.Low);
-            PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.iOS, ApiCompatibilityLevel.NET_Standard_2_0);
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.iOS, ManagedStrippingLevel.Low);
+            PlayerSettings.SetApiCompatibilityLevel(NamedBuildTarget.iOS, ApiCompatibilityLevel.NET_Standard_2_0);
             log.Add("ios: stripping Low, .NET Standard 2.0");
         }
 
@@ -193,6 +198,18 @@ namespace DreidelRoyale.EditorTools
         /// Reports the settings whose failure mode is silence — a build that runs perfectly and
         /// just quietly has no AR, or finds no tables on the network.
         /// </summary>
+        static bool InputHandlingIsBoth()
+        {
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+                if (assets == null || assets.Length == 0) return true;   // can't tell; don't cry wolf
+                var prop = new SerializedObject(assets[0]).FindProperty("activeInputHandler");
+                return prop == null || prop.intValue == 2;
+            }
+            catch { return true; }
+        }
+
         /// <summary>
         /// PlayerSettings.cloudProjectId has moved between Unity versions and is obsolete in
         /// some, so it is read reflectively: a missing property should read as "can't tell",
@@ -210,6 +227,38 @@ namespace DreidelRoyale.EditorTools
             catch { return "unknown"; }
         }
 
+        /// <summary>
+        /// AR Foundation 6 tracks the camera with the Input System's TrackedPoseDriver, but
+        /// every gesture, button and menu in this game reads the legacy Input class. Only
+        /// "Both" satisfies each of them; letting the Input System's install prompt switch the
+        /// project to New-only silently kills all touch input, which presents as a game that
+        /// builds, runs, and ignores you.
+        ///
+        /// There is no PlayerSettings API for it, so the setting is written through the
+        /// serialised object. Unity reloads the domain afterwards.
+        /// </summary>
+        static void EnableBothInputBackends()
+        {
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+                if (assets == null || assets.Length == 0) return;
+                var so = new SerializedObject(assets[0]);
+                var prop = so.FindProperty("activeInputHandler");
+                if (prop == null) return;
+                if (prop.intValue == 2) return;      // already Both
+                prop.intValue = 2;                   // 0 = Old, 1 = New, 2 = Both
+                so.ApplyModifiedProperties();
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Dreidel Royale] Active Input Handling set to Both. Unity will reload.");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Dreidel Royale] Couldn't set Active Input Handling: " + e.Message
+                                 + "\nSet it to Both by hand under Project Settings > Player.");
+            }
+        }
+
         [MenuItem("Dreidel Royale/Validate build settings")]
         public static void Validate()
         {
@@ -219,10 +268,8 @@ namespace DreidelRoyale.EditorTools
                 problems.Add("Colour space is Gamma. The gems and emissives are authored linear and will look flat.");
 
             var androidApis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
-            if (androidApis.Contains(GraphicsDeviceType.Vulkan))
-                problems.Add("Android graphics APIs include Vulkan. ARCore will not start; AR reports 'unsupported' on capable phones.");
             if (!androidApis.Contains(GraphicsDeviceType.OpenGLES3))
-                problems.Add("Android is missing OpenGLES3, which ARCore needs.");
+                problems.Add("Android has no OpenGLES3 fallback. Phones without Vulkan will not start.");
 
             if ((int)PlayerSettings.Android.minSdkVersion < 24)
                 problems.Add("Android minSdkVersion is below 24, which ARCore requires.");
@@ -230,12 +277,16 @@ namespace DreidelRoyale.EditorTools
             if (string.IsNullOrEmpty(PlayerSettings.iOS.cameraUsageDescription))
                 problems.Add("iOS camera usage description is empty. iOS terminates the app when it touches the camera.");
 
-            if (PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android) != ScriptingImplementation.IL2CPP)
+            if (PlayerSettings.GetScriptingBackend(NamedBuildTarget.Android) != ScriptingImplementation.IL2CPP)
                 problems.Add("Android is on Mono. Play requires a 64-bit binary, which needs IL2CPP.");
 
             // Relay reads the project id out of the build. Without a linked project, Online
             // fails at the first step on a real phone and nowhere else - which is exactly the
             // kind of thing that gets discovered after a store submission rather than before.
+            if (!InputHandlingIsBoth())
+                problems.Add("Active Input Handling is not \"Both\". AR camera tracking needs the "
+                             + "Input System and every control in this game reads the legacy one.");
+
             if (string.IsNullOrEmpty(CloudProjectId()))
                 problems.Add("No Unity project is linked, so Online play will fail. "
                              + "Link one under Edit > Project Settings > Services (it is free). "

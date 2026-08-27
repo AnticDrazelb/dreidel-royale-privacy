@@ -199,7 +199,9 @@ namespace DreidelRoyale.Net
             if (_codeTask.IsFaulted) { FailService(_codeTask.Exception); return; }
 
             _joinCode = _codeTask.Result;
-            var data = new RelayServerData(_allocTask.Result, "udp");
+            // Relay 1.1 exposes the conversion as an extension on the allocation itself; the
+            // RelayServerData constructor it replaced is gone in Unity Transport 2.
+            var data = _allocTask.Result.ToRelayServerData("udp");
             if (!CreateDriver(ref data)) return;
             Advance(Phase.Bind);
         }
@@ -216,7 +218,7 @@ namespace DreidelRoyale.Net
             if (!_joinTask.IsCompleted) return;
             if (_joinTask.IsFaulted) { Fail("No online table with that code."); return; }
 
-            var data = new RelayServerData(_joinTask.Result, "udp");
+            var data = _joinTask.Result.ToRelayServerData("udp");
             if (!CreateDriver(ref data)) return;
             Advance(Phase.Bind);
         }
@@ -237,7 +239,7 @@ namespace DreidelRoyale.Net
             _pipeline = _driver.CreatePipeline(typeof(FragmentationPipelineStage),
                                                typeof(ReliableSequencedPipelineStage));
 
-            if (_driver.Bind(NetworkEndPoint.AnyIpv4) != 0)
+            if (_driver.Bind(NetworkEndpoint.AnyIpv4) != 0)
             {
                 Fail("Couldn't start the connection.");
                 return false;

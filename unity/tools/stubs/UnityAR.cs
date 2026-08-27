@@ -22,6 +22,50 @@ namespace UnityEngine.XR.ARSubsystems
     }
 }
 
+namespace Unity.XR.CoreUtils
+{
+    /// XROrigin replaced ARSessionOrigin in AR Foundation 5.
+    public class XROrigin : UnityEngine.MonoBehaviour
+    {
+        public enum TrackingOriginMode { NotSpecified, Device, Floor, Unbounded }
+        public UnityEngine.Camera Camera { get; set; }
+        public UnityEngine.GameObject CameraFloorOffsetObject { get; set; }
+        public TrackingOriginMode RequestedTrackingOriginMode { get; set; }
+        public float CameraYOffset { get; set; }
+    }
+}
+
+namespace UnityEngine.InputSystem
+{
+    public enum InputActionType { Value, Button, PassThrough }
+    public class InputAction
+    {
+        public InputAction(string name = null, InputActionType type = InputActionType.Value,
+                           string binding = null, string interactions = null,
+                           string processors = null, string expectedControlType = null) { }
+        public void Enable() { }
+        public void Disable() { }
+    }
+    public struct InputActionProperty
+    {
+        public InputActionProperty(InputAction action) { }
+    }
+}
+
+namespace UnityEngine.InputSystem.XR
+{
+    public class TrackedPoseDriver : UnityEngine.MonoBehaviour
+    {
+        public enum TrackingType { RotationAndPosition, RotationOnly, PositionOnly }
+        public enum UpdateType { UpdateAndBeforeRender, Update, BeforeRender }
+        public TrackingType trackingType { get; set; }
+        public UpdateType updateType { get; set; }
+        public InputActionProperty positionInput { get; set; }
+        public InputActionProperty rotationInput { get; set; }
+        public InputActionProperty trackingStateInput { get; set; }
+    }
+}
+
 namespace UnityEngine.XR.ARFoundation
 {
     public enum ARSessionState

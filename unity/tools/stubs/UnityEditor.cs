@@ -25,15 +25,15 @@ namespace UnityEditor
         public static bool allowedAutorotateToPortrait, allowedAutorotateToPortraitUpsideDown,
                            allowedAutorotateToLandscapeLeft, allowedAutorotateToLandscapeRight;
 
-        public static void SetApplicationIdentifier(BuildTargetGroup g, string id) {}
-        public static void SetScriptingBackend(BuildTargetGroup g, ScriptingImplementation i) {}
-        public static ScriptingImplementation GetScriptingBackend(BuildTargetGroup g) { return ScriptingImplementation.IL2CPP; }
-        public static void SetManagedStrippingLevel(BuildTargetGroup g, ManagedStrippingLevel l) {}
-        public static void SetApiCompatibilityLevel(BuildTargetGroup g, ApiCompatibilityLevel l) {}
+        public static void SetApplicationIdentifier(Build.NamedBuildTarget g, string id) {}
+        public static void SetScriptingBackend(Build.NamedBuildTarget g, ScriptingImplementation i) {}
+        public static ScriptingImplementation GetScriptingBackend(Build.NamedBuildTarget g) { return ScriptingImplementation.IL2CPP; }
+        public static void SetManagedStrippingLevel(Build.NamedBuildTarget g, ManagedStrippingLevel l) {}
+        public static void SetApiCompatibilityLevel(Build.NamedBuildTarget g, ApiCompatibilityLevel l) {}
         public static void SetUseDefaultGraphicsAPIs(BuildTarget t, bool v) {}
         public static void SetGraphicsAPIs(BuildTarget t, GraphicsDeviceType[] apis) {}
         public static GraphicsDeviceType[] GetGraphicsAPIs(BuildTarget t) { return new GraphicsDeviceType[0]; }
-        public static void SetArchitecture(BuildTargetGroup g, int arch) {}
+        public static void SetArchitecture(Build.NamedBuildTarget g, int arch) {}
 
         public static class Android
         {
@@ -48,7 +48,14 @@ namespace UnityEditor
         }
     }
 
-    public static class AssetDatabase { public static void SaveAssets() {} }
+    public class SerializedProperty { public int intValue { get; set; } public bool boolValue { get; set; } }
+    public class SerializedObject {
+        public SerializedObject(UnityEngine.Object o){}
+        public SerializedProperty FindProperty(string path){return null;}
+        public bool ApplyModifiedProperties(){return false;}
+    }
+    public static class AssetDatabase {
+        public static UnityEngine.Object[] LoadAllAssetsAtPath(string path){return null;} public static void SaveAssets() {} }
 
     public static class EditorBuildSettings
     {
@@ -79,4 +86,15 @@ namespace UnityEditor.Build
 namespace UnityEditor.Build.Reporting
 {
     public class BuildReport {}
+}
+
+namespace UnityEditor.Build
+{
+    /// Replaced the BuildTargetGroup overloads of PlayerSettings in Unity 6.
+    public struct NamedBuildTarget
+    {
+        public static NamedBuildTarget Android { get { return default(NamedBuildTarget); } }
+        public static NamedBuildTarget iOS { get { return default(NamedBuildTarget); } }
+        public static NamedBuildTarget Standalone { get { return default(NamedBuildTarget); } }
+    }
 }

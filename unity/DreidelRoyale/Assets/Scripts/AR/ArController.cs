@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
+using Unity.XR.CoreUtils;
 using DreidelRoyale.Core;
 using DreidelRoyale.Visual;
 
@@ -37,12 +38,12 @@ namespace DreidelRoyale.AR
         public string TableMode { get { return _tableMode; } }
 
         ARSession _session;
-        ARSessionOrigin _origin;
+        XROrigin _origin;
         ARRaycastManager _raycasts;
         ARPlaneManager _planes;
         ARCameraManager _camManager;
         ARCameraBackground _camBackground;
-        ARPoseDriver _poseDriver;
+        Behaviour _poseDriver;
 
         readonly ArProps _props = new ArProps();
         readonly List<ARRaycastHit> _hits = new List<ARRaycastHit>();
@@ -119,12 +120,22 @@ namespace DreidelRoyale.AR
             var sessionGo = new GameObject("ARSession");
             sessionGo.transform.SetParent(transform, false);
             _session = sessionGo.AddComponent<ARSession>();
-            sessionGo.AddComponent<ARInputManager>();
             _session.enabled = false;
 
-            var originGo = new GameObject("ARSessionOrigin");
+            // XROrigin replaced ARSessionOrigin in AR Foundation 5. Its shape is fixed and
+            // not optional: origin -> floor-offset object -> camera. The offset object is
+            // what the tracking origin mode moves, so the camera must be under it rather
+            // than under the origin directly, or a device-origin session puts the camera at
+            // the floor instead of at eye height.
+            var originGo = new GameObject("XROrigin");
             originGo.transform.SetParent(transform, false);
-            _origin = originGo.AddComponent<ARSessionOrigin>();
+            _origin = originGo.AddComponent<XROrigin>();
+
+            _camOffset = new GameObject("CameraOffset");
+            _camOffset.transform.SetParent(originGo.transform, false);
+            _origin.CameraFloorOffsetObject = _camOffset;
+            _origin.RequestedTrackingOriginMode = XROrigin.TrackingOriginMode.Device;
+
             _raycasts = originGo.AddComponent<ARRaycastManager>();
             _planes = originGo.AddComponent<ARPlaneManager>();
             _planes.planePrefab = null;          // detection without the tell-tale grid overlay
@@ -132,20 +143,24 @@ namespace DreidelRoyale.AR
             _origin.gameObject.SetActive(false);
         }
 
+        GameObject _camOffset;
+
         void AttachCamera()
         {
             // One camera, not two: the game's camera BECOMES the AR camera, so billboards,
             // projection and every reference to it keep working untouched.
             _savedCamParent = Cam.transform.parent;
-            Cam.transform.SetParent(_origin.transform, false);
-            _origin.camera = Cam;
+            Cam.transform.SetParent(_camOffset.transform, false);
+            Cam.transform.localPosition = Vector3.zero;
+            Cam.transform.localRotation = Quaternion.identity;
+            _origin.Camera = Cam;
 
             if (_camManager == null) _camManager = Cam.gameObject.AddComponent<ARCameraManager>();
             if (_camBackground == null) _camBackground = Cam.gameObject.AddComponent<ARCameraBackground>();
-            if (_poseDriver == null) _poseDriver = Cam.gameObject.AddComponent<ARPoseDriver>();
+            if (_poseDriver == null) _poseDriver = ArPose.Attach(Cam.gameObject);
             _camManager.enabled = true;
             _camBackground.enabled = true;
-            _poseDriver.enabled = true;
+            if (_poseDriver != null) _poseDriver.enabled = true;
         }
 
         void DetachCamera()
