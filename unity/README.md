@@ -146,18 +146,42 @@ allocation, join code, bind — is advanced from there as a small state machine 
 clock. That keeps it interchangeable with `LanTransport` in `TransportFactory`, and keeps all
 Unity API contact on the main thread without a lock.
 
+## Store plumbing
+
+The Full Collection is a real entitlement, so the button behind it does not grant one.
+`Core/Iap.cs` is the seam: it asks the native side, and when there is no billing bridge it
+says *"Purchases are available in the store version of the game"* rather than handing the
+unlock out. Wire it up by supplying either half —
+
+- **Android:** a class `com.dreidelroyale.Billing` with a static `instance()` and instance
+  methods `buyFullCollection()` / `restorePurchases()`.
+- **iOS:** the three functions in `Plugins/iOS/DreidelIap.mm`, and flip
+  `_DreidelIapAvailable()` to return 1.
+
+Either side reports success with `UnitySendMessage("Bootstrap", "OnPurchaseComplete", "")`
+(or `"OnPurchaseRestored"`). Until then the entitlement is only reachable through the debug
+code the web build also carried, which is gated on `Debug.isDebugBuild` — in a release build
+typing it does nothing, so the purchase cannot be typed past.
+
+The rating nudge (`Core/Rating.cs`) fires after the third win, once ever, 2.6s into the
+celebration. iOS is wired for real through `SKStoreReviewController`; Android looks for a
+`com.dreidelroyale.Review` wrapper around Play's In-App Review and stays silent without one.
+
+Invite deep links are handled: a `?join=CODE` URL routes straight into the join flow with
+the code prefilled, and is refused with an explanation if a game is already in progress.
+
 ## What is not in this port
 
 Called out plainly so nobody goes looking:
 
-- **The store bridge.** The Play Billing hookup behind "Unlock Full Collection" is platform
-  plumbing. The entitlement is stored and honoured; the button grants it locally so the premium
-  dreidels can be seen and played.
-- **The graphics tier picker.** Auto/High/Medium/Potato existed to keep a browser canvas
-  alive. Unity has its own quality settings, and the port targets a fixed tier instead.
-- **Deep-link joins and the rating prompt.** Both are store plumbing rather than game code.
-- **The WebGL survival machinery.** Context-loss recovery, renderer rebuilds and the graphics
-  tier governor exist to keep a browser canvas alive. Unity has no analogue for them.
+- **The WebGL survival machinery.** Context-loss recovery, renderer rebuilds and the frame
+  rate governor exist to keep a browser canvas alive. Unity has no analogue for them. The
+  graphics *tier* they fed — Auto / High / Medium / Potato, in the pause menu — is ported:
+  it moves render resolution, shadows and the ambient particle layer, and Auto is sticky per
+  device. Frame rate is deliberately left alone, for the reason the original gives: fidelity
+  should follow what the GPU can draw, pacing what the device can sustain.
+- **The multi-tab guard.** Two browser tabs of the same game could collide over a peer id.
+  An app has one instance.
 
 ## One deliberate difference
 

@@ -126,6 +126,7 @@ namespace UnityEngine
     }
     public class Object {
         public string name; public HideFlags hideFlags;
+        public int GetInstanceID(){return 0;}
         public static void Destroy(Object o){} public static void Destroy(Object o, float t){}
         public static void DestroyImmediate(Object o){}
         public static implicit operator bool(Object o){return true;}
@@ -180,7 +181,7 @@ namespace UnityEngine
         public void SetParent(Transform p){} public void SetParent(Transform p, bool w){}
         public Transform GetChild(int i){return null;}
         public Transform Find(string n){return null;}
-        public void SetAsFirstSibling(){} public void SetAsLastSibling(){} public void SetSiblingIndex(int i){}
+        public void SetAsFirstSibling(){} public void SetAsLastSibling(){} public void SetSiblingIndex(int i){} public int GetSiblingIndex(){return 0;}
         public void LookAt(Vector3 v){} public void LookAt(Transform t){}
         public void SetPositionAndRotation(Vector3 p, Quaternion r){}
         public void Rotate(float x, float y, float z){}
@@ -203,17 +204,26 @@ namespace UnityEngine
     public static class Time {
         public static float time, deltaTime, unscaledTime, unscaledDeltaTime, fixedDeltaTime, timeScale, realtimeSinceStartup;
     }
+    public struct Resolution { public int width, height, refreshRate; }
     public static class Screen {
         public static int width, height;
+        public static bool fullScreen;
+        public static Resolution currentResolution;
         public static SleepTimeout sleepTimeout;
         public static ScreenOrientation orientation;
+        public static void SetResolution(int w, int h, bool fs){}
     }
     public struct SleepTimeout { public static SleepTimeout NeverSleep, SystemSetting; }
     public enum ScreenOrientation { Portrait, LandscapeLeft }
+    public enum NetworkReachability { NotReachable, ReachableViaCarrierDataNetwork, ReachableViaLocalAreaNetwork }
     public static class Application {
         public static int targetFrameRate;
-        public static bool isPlaying, isMobilePlatform;
+        public static bool isPlaying, isMobilePlatform, isEditor;
         public static RuntimePlatform platform;
+        public static string absoluteURL;
+        public static NetworkReachability internetReachability;
+        public static event System.Action<string> deepLinkActivated;
+        public static void OpenURL(string url){}
         public static void Quit(){}
     }
     public static class Input {
@@ -243,13 +253,15 @@ namespace UnityEngine
     }
     public static class Debug {
         public static void Log(object o){} public static void LogWarning(object o){} public static void LogError(object o){}
+        public static bool isDebugBuild;
     }
-    public static class SystemInfo { public static bool supportsVibration; }
+    public static class SystemInfo { public static bool supportsVibration; public static int systemMemorySize; public static int processorCount; public static int graphicsMemorySize; public static string deviceModel; }
     public static class Handheld { public static void Vibrate(){} }
     public static class GUIUtility { public static string systemCopyBuffer; }
     public static class QualitySettings {
         public static ShadowQuality shadows; public static ShadowResolution shadowResolution;
         public static float shadowDistance;
+        public static int antiAliasing, shadowCascades, vSyncCount;
     }
     public enum ShadowQuality { Disable, HardOnly, All }
     public enum ShadowResolution { Low, Medium, High, VeryHigh }

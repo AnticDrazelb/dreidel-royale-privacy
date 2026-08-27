@@ -685,6 +685,8 @@ namespace DreidelRoyale.Core
             if (st.BiggestSweep > S.bestSweep) S.bestSweep = st.BiggestSweep;
             Stats.Save(S);
 
+            if (Rating.ShouldAsk(humanWon, S)) StartCoroutine(Rating.AskAfterCelebration());
+
             // any dreidels OR tables newly earned this game?
             var newly = new List<KeyValuePair<string, string>>();
             foreach (var d in Unlocks.Skins)
@@ -828,12 +830,18 @@ namespace DreidelRoyale.Core
                 G.Status = GameStatus.Playing;
                 G.Stats = new GameStats();
                 _startingPlayers = G.Players.Count;
-                _showdownShown = false; _lastTurnIndex = -1;
+                _winnerShown = false;
+                // Down to the last two already? Then the showdown has been declared, and
+                // re-announcing it on resume would be the game repeating itself.
+                _showdownShown = G.AliveCount <= 2;
+                _lastTurnIndex = -1;
+                IsSpinning = false; IsCharging = false;
                 ApplyEnv(G.Env);
                 Music.SetIntensity(1);
                 UI.ShowGame();
                 Hud.ResetMotion();
                 Hud.Refresh();
+                UI.Toast("Game resumed - your table awaits");
                 MaybeCpuTurn();
                 return true;
             }

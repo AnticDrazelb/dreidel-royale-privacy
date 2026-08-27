@@ -41,11 +41,30 @@ namespace DreidelRoyale.UI
             Spawn();
         }
 
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            GfxSettings.OnChanged += Spawn;
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            GfxSettings.OnChanged -= Spawn;
+        }
+
         void Spawn()
         {
             _embers.Clear();
+            _sparkles.Clear();
+
+            // Potato drops the ambient layer entirely; Medium keeps half of it. That is the
+            // tier doing what the tier is for, rather than a quality setting nobody can see.
+            if (!GfxSettings.EmbersOn) { SetVerticesDirty(); return; }
+            int count = Mathf.Max(1, Mathf.RoundToInt(_cfg.Count * GfxSettings.EmberMultiplier));
+
             bool snow = _cfg.Mode == "snow";
-            for (int i = 0; i < _cfg.Count; i++)
+            for (int i = 0; i < count; i++)
                 _embers.Add(new Ember
                 {
                     X = Random.value * Screen.width,

@@ -44,8 +44,12 @@ namespace DreidelRoyale.UI
         Transform _envPickerCpu, _skinPickerCpu;
         Transform _rulesPickerLocal, _antePickerLocal, _envPickerLocal, _skinPickerLocal, _localList;
         Transform _envPickerCustom, _skinPickerCustom, _skinPickerChange, _envPickerChange;
-        Transform _recordsStats, _winStats;
-        Text _winnerName, _winnerLine, _winLifetime;
+        /// <summary>Where the store listings point for the policy both platforms require.</summary>
+        public const string PrivacyUrl = "https://anticdrazelb.github.io/dreidel-royale-privacy/";
+
+        Transform _recordsStats, _winStats, _gfxPicker;
+        Text _winnerName, _winnerLine, _winLifetime, _collectionLine, _buyLabel;
+        Button _buyBtn;
         InputField _cpuName, _localName;
         readonly InputField[] _customFaces = new InputField[4];
         Button _resumeBtn;
@@ -204,8 +208,14 @@ namespace DreidelRoyale.UI
             UIKit.Btn(row.transform, "How to Play", UIKit.BtnKind.Text, ShowHowTo, 140f, 40f, 15);
 
             UIKit.Spacer(c, 6f);
-            var ver = UIKit.Label(c, "GELT EDITION - V1.0", 10, new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.7f));
-            UIKit.SetSize(ver, 320, 16);
+            var verRow = UIKit.Row(c, 6f, 18f);
+            var ver = UIKit.Label(verRow.transform, "GELT EDITION - V1.0 -", 10,
+                                  new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.7f));
+            UIKit.SetSize(ver, 150, 16);
+            // A reachable privacy policy is a store requirement on both platforms, so the
+            // link is a real control rather than the flat text a screenshot would give.
+            UIKit.Btn(verRow.transform, "Privacy", UIKit.BtnKind.Text,
+                      () => Application.OpenURL(PrivacyUrl), 56f, 18f, 10);
         }
 
         void BuildCpuSetup(Transform c)
@@ -300,6 +310,7 @@ namespace DreidelRoyale.UI
             UIKit.Btn(p2, "Start", UIKit.BtnKind.Primary, () =>
             {
                 Sfx.Play("tick");
+                if (GC.G.Players.Count < 2) { Toast("Need at least 2 players", true); return; }
                 GC.StartLocalGame();
             });
             UIKit.Btn(p2, "Back", UIKit.BtnKind.Ghost, () => { Sfx.Play("tick"); localPager.Back(); });
@@ -360,19 +371,26 @@ namespace DreidelRoyale.UI
 
             _recordsStats = UIKit.Grid(c, new Vector2(100, 74), 8f, 330f).transform;
 
+            _collectionLine = UIKit.Label(c, "", 12, Theme.Sub);
+            UIKit.SetSize(_collectionLine, 340, 24);
+
             UIKit.Spacer(c, 8f);
-            UIKit.Btn(c, "Unlock Full Collection", UIKit.BtnKind.Primary, () =>
+            _buyBtn = UIKit.Btn(c, "Unlock Full Collection", UIKit.BtnKind.Primary, () =>
             {
-                // The store bridge lands on the native side; until then the entitlement is
-                // granted locally so the premium dreidels can be seen and played.
-                Unlocks.GrantFullCollection();
-                Toast("Full Collection unlocked - thank you!");
-                Sfx.Play("coin"); Sfx.Buzz(40, 60, 40);
-                RefreshRecords();
+                Sfx.Play("tick");
+                if (Unlocks.OwnsFullCollection()) return;
+                // The store decides, not this button. A build with no billing bridge says so
+                // rather than granting a paid unlock on tap.
+                if (!Iap.RequestFullCollection())
+                    Toast("Purchases are available in the store version of the game", true);
             });
+            _buyLabel = _buyBtn.GetComponentInChildren<Text>();
             UIKit.Btn(c, "Restore Purchase", UIKit.BtnKind.Text, () =>
             {
-                Toast(Unlocks.OwnsFullCollection() ? "Full Collection restored" : "Nothing to restore",
+                Sfx.Play("tick");
+                if (Iap.RequestRestore()) return;         // the answer arrives as a callback
+                Toast(Unlocks.OwnsFullCollection() ? "Full Collection already unlocked"
+                                                   : "Nothing to restore yet",
                       !Unlocks.OwnsFullCollection());
             }, 200f, 40f, 15);
             UIKit.Btn(c, "Back", UIKit.BtnKind.Ghost, () => Show("landing"));
@@ -483,7 +501,8 @@ namespace DreidelRoyale.UI
             {
                 Sfx.HapticsOn = v2; Store.Set("drdl-haptics", v2 ? "1" : "0");
             });
-            UIKit.Switch(col.transform, "Israel dreidel", Consts.IsraelMode, v2 =>
+            UIKit.Switch(col.transform, "Israel dreidel  <color=#8b93b8><size=10>(\u05E4 Po - else \u05E9 Sham)</size></color>",
+                         Consts.IsraelMode, v2 =>
             {
                 Consts.IsraelMode = v2;
                 Store.Set("drdl-israel", v2 ? "1" : "0");
@@ -501,6 +520,11 @@ namespace DreidelRoyale.UI
                 Hud.Show(false);
                 Show("change");
             });
+
+            UIKit.SectionLabel(col.transform, "Graphics");
+            _gfxPicker = UIKit.Row(col.transform, 6f, 44f).transform;
+            RenderGfxPicker();
+
             UIKit.Btn(col.transform, "Return to Game", UIKit.BtnKind.Primary, TogglePause);
             UIKit.Btn(col.transform, "Main Menu", UIKit.BtnKind.Danger, QuitToMenu);
 
@@ -915,9 +939,13 @@ namespace DreidelRoyale.UI
                 var coins = UIKit.Label(row.transform, p.Coins.ToString(), 14, Theme.Gold,
                                         TextAnchor.MiddleRight, false, FontStyle.Bold);
                 UIKit.SetSize(coins, 34, 30);
+                var goneName = p.Name;
                 UIKit.Btn(row.transform, "X", UIKit.BtnKind.Danger, () =>
                 {
-                    GC.G.Players.RemoveAt(idx); Sfx.Play("tick"); RefreshLocalSetup();
+                    GC.G.Players.RemoveAt(idx);
+                    Sfx.Play("tick");
+                    Toast(goneName + " removed");
+                    RefreshLocalSetup();
                 }, 40f, 30f, 14);
             }
 
@@ -966,7 +994,8 @@ namespace DreidelRoyale.UI
 
         void RefreshChange()
         {
-            Pickers.RenderSkin(_skinPickerChange, GC.MySkinChoice, id => { PickSkin(id); RefreshChange(); });
+            Pickers.RenderSkin(_skinPickerChange, GC.MySkinChoice,
+                               id => { PickSkin(id, false); RefreshChange(); }, false);
             // the table is locked mid-game: the pot and props are already on it
             Pickers.RenderEnv(_envPickerChange, GC.G.Env, _ => Toast("Table can't change mid-game", true), true);
         }
@@ -975,13 +1004,48 @@ namespace DreidelRoyale.UI
         {
             var S = Stats.Load();
             UIKit.Clear(_recordsStats);
-            AddStat(_recordsStats, S.games.ToString(), "Played");
-            AddStat(_recordsStats, S.wins.ToString(), "Wins");
-            AddStat(_recordsStats, S.losses.ToString(), "Losses");
-            AddStat(_recordsStats, S.bestSweep.ToString(), "Best Sweep");
-            AddStat(_recordsStats, S.spins.ToString(), "Spins");
-            AddStat(_recordsStats, S.gimels.ToString(), "Gimels");
-            AddStat(_recordsStats, S.bestStreak.ToString(), "Best Streak");
+
+            if (S.games == 0)
+            {
+                // An empty grid of zeroes reads as a bug. One line reads as an invitation.
+                var empty = UIKit.Label(_recordsStats, "No games yet - your story starts with a spin.",
+                                        13, Theme.Sub, TextAnchor.MiddleCenter);
+                UIKit.SetSize(empty, 320, 60);
+            }
+            else
+            {
+                int played = S.wins + S.losses;
+                string rate = played > 0 ? Mathf.RoundToInt(S.wins / (float)played * 100f) + "%" : "-";
+                AddStat(_recordsStats, S.games.ToString(),      "Games");
+                AddStat(_recordsStats, S.wins.ToString(),       "Wins");
+                AddStat(_recordsStats, rate,                    "Win Rate");
+                AddStat(_recordsStats, S.bestStreak.ToString(), "Best Streak");
+                AddStat(_recordsStats, S.spins.ToString(),      "Spins");
+                AddStat(_recordsStats, S.gimels.ToString(),     "Gimels");
+                AddStat(_recordsStats, S.bestSweep.ToString(),  "Best Sweep");
+                AddStat(_recordsStats, S.streak.ToString(),     "Streak");
+            }
+
+            if (_collectionLine != null)
+            {
+                int skins = Unlocks.Skins.Count(d => Unlocks.SkinUnlocked(d, S));
+                int envs = EnvDefs.All.Count(kv => Unlocks.EnvUnlocked(kv.Key, S));
+                _collectionLine.text = string.Format("Collection - {0}/{1} dreidels - {2}/{3} tables",
+                                                     skins, Unlocks.Skins.Count, envs, EnvDefs.All.Count);
+                _collectionLine.gameObject.SetActive(S.games > 0);
+            }
+
+            RefreshIapRow();
+        }
+
+        /// <summary>The buy row states what is already owned rather than offering it again.</summary>
+        void RefreshIapRow()
+        {
+            if (_buyBtn == null) return;
+            bool owned = Unlocks.OwnsFullCollection();
+            if (_buyLabel != null)
+                _buyLabel.text = owned ? "Full Collection owned" : "Unlock Full Collection";
+            _buyBtn.interactable = !owned;
         }
 
         void AddStat(Transform parent, string value, string label)
@@ -1039,24 +1103,65 @@ namespace DreidelRoyale.UI
             GC.ApplyEnv(id);
         }
 
-        void PickSkin(string id)
+        /// <summary>
+        /// `pairTable` is false only on the Change Dreidel screen, where the table is locked
+        /// mid-game and must not switch out from under the players.
+        /// </summary>
+        void PickSkin(string id, bool pairTable = true)
         {
             GC.MySkinChoice = id;
             Store.Set("drdl-skin", id);
-            View.SetSkin(id);
+
+            // Mid-game the dreidel on the table belongs to whoever's turn it is, so a change
+            // from the pause menu only shows immediately when that dreidel is mine - and
+            // never mid-spin, which would swap the piece in the air.
+            bool showNow = GC.G == null || GC.G.Status != GameStatus.Playing;
+            if (!showNow && !GC.IsSpinning)
+            {
+                var cur = GC.G.Current;
+                showNow = GC.IsLocalGame || GC.CustomMode
+                          || (cur != null && GC.Net != null && GC.Net.IsMySeat(cur));
+            }
+            if (showNow) View.SetSkin(id);
+
+            // Announce it so the rest of the table sees the new dreidel on my next turn.
+            if (GC.Net != null && GC.Net.Active) GC.Net.AnnounceSkin(id);
+
             RefreshChrome();       // the table and the dreidel together decide the chrome
+
+            // The Blue Pup and the Backyard only travel together, in both directions.
+            if (pairTable && !_pairLock)
+            {
+                _pairLock = true;
+                try
+                {
+                    if (id == "heeler" && GC.HostEnvChoice != "backyard")
+                    {
+                        PickEnv("backyard");
+                        Toast("Blue Pup brings the Backyard along");
+                    }
+                    else if (id != "heeler" && GC.HostEnvChoice == "backyard")
+                    {
+                        PickEnv("midnight");
+                    }
+                }
+                finally { _pairLock = false; }
+            }
         }
+
+        bool _pairLock;
 
         /// <summary>
         /// The secret test unlock, typed into a name field. Kept for the same reason the web
         /// build keeps it: so the premium pieces can be checked without a store round-trip.
         /// </summary>
-        bool CheckTestUnlock(string name)
+        public bool CheckTestUnlock(string name)
         {
+            // Debug builds only, exactly as the web build gated it on window.DR_DEBUG. In a
+            // release build the code does nothing, so the purchase can't be typed past.
+            if (!Debug.isDebugBuild && !Application.isEditor) return false;
             if (name == null || name.Trim().ToUpper() != Unlocks.TestUnlockCode) return false;
-            Unlocks.GrantFullCollection();
-            Toast("Full Collection unlocked");
-            Sfx.Play("coin");
+            Iap.GrantEntitlement(true);
             return true;
         }
 
@@ -1191,6 +1296,71 @@ namespace DreidelRoyale.UI
 
         public void HideWinner() { _winner.gameObject.SetActive(false); }
 
+        // ---------------------------------------------------------------
+        //  graphics tier
+        // ---------------------------------------------------------------
+        void RenderGfxPicker()
+        {
+            if (_gfxPicker == null) return;
+            UIKit.Clear(_gfxPicker);
+            foreach (var kv in GfxSettings.Labels)
+            {
+                var id = kv.Key;
+                UIKit.Chip(_gfxPicker, kv.Value, GfxSettings.Mode == id, () =>
+                {
+                    Sfx.Play("tick"); Sfx.Buzz(10);
+                    GfxSettings.Pick(id);
+                    RenderGfxPicker();
+                    // Auto names the tier it landed on, because "Auto" alone doesn't tell
+                    // anyone whether their phone was judged fast or slow.
+                    Toast("Graphics: " + GfxSettings.LabelFor(id)
+                          + (id == GfxSettings.Auto ? " (" + GfxSettings.LabelFor(GfxSettings.Tier) + ")" : ""));
+                }, 74f, 40f, 13);
+            }
+        }
+
+        /// <summary>Every visible dreidel/table picker, re-rendered after an entitlement lands.</summary>
+        public void RefreshPickers()
+        {
+            if (Current == "records") RefreshRecords();
+            else if (Current == "cpu") RefreshCpuSetup();
+            else if (Current == "local") RefreshLocalSetup();
+            else if (Current == "custom") RefreshCustom();
+            else if (Current == "change") RefreshChange();
+            if (NetScreens != null) NetScreens.RefreshSkinPicker();
+        }
+
+        /// <summary>
+        /// An invite tapped elsewhere on the phone. Only a code is honoured, and only from a
+        /// standing start: dropping someone out of a live game because a message arrived
+        /// would be worse than making them finish it.
+        /// </summary>
+        public void HandleDeepLink(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+            var code = ExtractJoinCode(url);
+            if (string.IsNullOrEmpty(code)) return;
+
+            if (GC.G != null && GC.G.Status == GameStatus.Playing
+                || (GC.Net != null && GC.Net.Active))
+            {
+                Toast("Finish this game first - invite code was " + code, true);
+                return;
+            }
+            if (NetScreens != null) NetScreens.BeginJoinWithCode(code);
+        }
+
+        static string ExtractJoinCode(string url)
+        {
+            int q = url.IndexOf("join=", StringComparison.OrdinalIgnoreCase);
+            if (q < 0) return null;
+            var rest = url.Substring(q + 5);
+            int end = rest.IndexOfAny(new[] { '&', '#', '/', '?' });
+            if (end >= 0) rest = rest.Substring(0, end);
+            rest = DreidelRoyale.Net.RoomCode.Clean(rest);
+            return DreidelRoyale.Net.RoomCode.IsValid(rest) ? rest : null;
+        }
+
         /// <summary>
         /// The result as a story rather than a scoreline: the spin log runs as emoji, so
         /// someone reading it can see the game turn.
@@ -1199,11 +1369,10 @@ namespace DreidelRoyale.UI
         {
             Sfx.Play("tick");
             var st = GC.G.Stats;
-            var body = _winnerName.text + " takes the table.\n"
-                     + NativeShare.HistoryEmoji(st.History) + "\n"
-                     + string.Format("{0} rounds - {1} spins - best sweep {2} gelt",
-                                     GC.G.Round, st.Spins, st.BiggestSweep)
-                     + "\n\nDreidel Royale";
+            var body = "Dreidel Royale \U0001FA99\n"
+                     + string.Format("\U0001F3C6 {0} wins in {1} rounds - best sweep {2} gelt\n",
+                                     _winnerName.text, GC.G.Round, st.BiggestSweep)
+                     + NativeShare.HistoryEmoji(st.History);
             if (!NativeShare.Share("Dreidel Royale", body))
                 Toast("Result copied to the clipboard");
         }

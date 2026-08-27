@@ -40,34 +40,55 @@ namespace DreidelRoyale.Core
                 "Gantz! All mine!","The whole pot — l'chaim!","Read it and weep!",
                 "Mazel is with me tonight!","Come to papa, gelt!","That's how it's done, bubbeleh.",
                 "I'd like to thank the dreidel.","Sweeter than sufganiyot!","The pot? MY pot.",
-                "Did everyone see that? Good.","A great miracle happened HERE." } },
+                "Did everyone see that? Good.","A great miracle happened HERE.","My bubbe taught me that spin.",
+                "Ka-ching!","Don't hate the spinner…"
+            } },
             { "BIG", new[]{
-                "That is a LOT of gelt.","I may need a bigger pocket.","Somebody get me a wheelbarrow.",
-                "This is my Hanukkah miracle.","Eight nights of this, please." } },
+                "JACKPOT! Someone write this down!","A sweep for the history books!","I'm rich! RICH, I tell you!",
+                "That's a whole latke fortune!","Retirement, here I come!","The dreidel LOVES me!",
+                "Biggest pot of my life — l'chaim!","Somebody pinch me!"
+            } },
             { "HEI", new[]{
-                "Halb — I'll take it.","Half a pot is still a pot.","Not greedy. Just hungry.",
-                "A tidy little scoop.","Better than nothing, nu?" } },
+                "Half the pot? Don't mind if I do.","I'll take my share, thank you.","Halb for me!",
+                "Half now, the rest later.","A modest little windfall.","I'm not greedy. Just lucky.",
+                "Halb! Better than nisht.","Fifty percent of delicious.","Sharing is caring — mostly for me.",
+                "The polite person's jackpot.","I'll drink to half!","Some for me, some for… also me, later."
+            } },
             { "NUN", new[]{
-                "Nisht. Story of my life.","Nothing. Marvellous.","The dreidel mocks me.",
-                "I felt that one was good, too.","Nun again? Really?","Well. That happened." } },
-            { "SHIN", new[]{
-                "Shtel… there goes another.","Paying the house, as usual.","Ow. My gelt.",
-                "Consider it a donation.","Take it. Take it all.","This dreidel has it in for me." } },
-            { "PEI", new[]{
-                "Pei… there goes another.","Paying the house, as usual.","Ow. My gelt.",
-                "Consider it a donation.","Take it. Take it all." } },
-            { "BROKE", new[]{
-                "I have nothing left to give.","My pockets are officially lint.",
-                "Can I pay you in latkes?","This is fine. Everything is fine." } },
+                "Nisht. Typical.","Nothing?! Oy vey.","This dreidel hates me.",
+                "Nisht again? NISHT?!","I spun it with love and got bupkis.","Well. That was pointless.",
+                "The dreidel and I need to talk.","Absolutely nothing. Wonderful.","I blame the table.",
+                "Even my bubbe spins better.","Bupkis. As usual.","Nisht happens."
+            } },
+            { "PAY", new[]{
+                "There goes my gelt…","Paying in AGAIN?","Shtel. Wonderful.",
+                "Take it, take it all, why not.","The pot eats better than I do.","My gelt! My precious gelt!",
+                "Fine. FINE. Have it.","This pot is a bottomless pit.","I'm basically a charity now.",
+                "Oy, back in the pot.","Somebody stop this dreidel.","Consider it a loan. Interest-free. Forever."
+            } },
             { "JAB", new[]{
-                "Beginner's luck.","Enjoy it while it lasts.","The dreidel is clearly broken.",
-                "Hmph. Lucky spin.","I'm letting you have that one." } },
+                "Beginner's luck!","Oy, leave some for the rest of us!","That pot was MINE.",
+                "Enjoy it while it lasts…","The dreidel was clearly bribed.","I demand a recount!",
+                "Lucky spin. LUCKY.","My gelt! I knew it personally!","Even a broken dreidel lands Gimel twice a day.",
+                "Don't spend it all on latkes.","I taught you that spin, remember.","The house always remembers.",
+                "Yeah yeah, very impressive.","Next round, that pot is mine."
+            } },
             { "JAB_PAY", new[]{
-                "Thank you kindly.","Into the pot it goes.","Don't mind if I do.",
-                "That'll do nicely." } },
+                "Ha! Pay up!","Music to my ears.","The pot thanks you kindly.",
+                "Every little helps — for me.","Keep 'em coming!","A generous donation!",
+                "That's the spirit. Keep paying.","The pot grows fat on your gelt."
+            } },
+            { "BROKE", new[]{
+                "You can't squeeze gelt from a stone.","Pay with WHAT, exactly?","My pockets are already empty!",
+                "The pot will have to take an IOU.","Ha! Nothing left to take!","I'm broke — joke's on the pot.",
+                "Shin? I have bupkis to give.","Take my lint. It's all I have."
+            } },
             { "ELIM", new[]{
-                "I'm out. It's been an honour.","No gelt, no glory.","Tell my story.",
-                "I'll just watch, then." } }
+                "I'm cleaned out…","Save me a latke, I'm done.","Tell my gelt I loved it.",
+                "I came, I spun, I lost everything.","Avenge me, someone.","The dreidel giveth and taketh away.",
+                "I'll just watch. Quietly. Weeping.","My bubbe will hear about this.","Out of gelt, out of luck.",
+                "Farewell, cruel table."
+            } }
         };
 
         // shuffle-bag state, per line key
@@ -80,6 +101,10 @@ namespace DreidelRoyale.Core
         /// </summary>
         public static string DrawLine(string key)
         {
+            // Shin and Pei are the same beat - paying in - so they share one pool rather
+            // than needing a near-duplicate of it per fourth face.
+            if (key == "SHIN" || key == "PEI") key = "PAY";
+
             string[] pool;
             if (!Lines.TryGetValue(key, out pool) || pool.Length == 0) return null;
 

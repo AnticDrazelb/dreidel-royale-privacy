@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -38,10 +39,11 @@ namespace DreidelRoyale
             I = this;
             Application.targetFrameRate = 60;
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
-            QualitySettings.shadows = ShadowQuality.All;
-            QualitySettings.shadowResolution = ShadowResolution.Medium;
 
             LoadPrefs();
+            // The tier owns shadows, resolution and the ambient layer, so it is applied
+            // before anything reads them rather than after.
+            GfxSettings.Load();
             BuildCamera();
             BuildAudio();
             BuildWorld();
@@ -49,6 +51,7 @@ namespace DreidelRoyale
             BuildAr();
             Wire();
 
+            ValidateSavedChoices();
             _gc.ApplyEnv(_gc.HostEnvChoice);
             _view.SetSkin(_gc.MySkinChoice);
 
@@ -62,8 +65,59 @@ namespace DreidelRoyale
             // the chrome is only knowable once both are settled.
             _ui.RefreshChrome();
 
+            // The native store's landing pad has to be a component on a named object, so it
+            // rides on Bootstrap - the one object the scene is guaranteed to have.
+            gameObject.AddComponent<IapCallbacks>();
+            Iap.OnEntitled += OnEntitled;
+
+            // An invite tapped in a message opens the app straight into the join flow.
+            Application.deepLinkActivated += OnDeepLink;
+            if (!string.IsNullOrEmpty(Application.absoluteURL)) OnDeepLink(Application.absoluteURL);
+
+            StartCoroutine(WatchConnectivity());
+
             // first run: show the rules before the first spin, exactly once
             if (Store.Get("drdl-seen") != "1") _ui.ShowHowTo();
+        }
+
+        void OnDestroy()
+        {
+            Iap.OnEntitled -= OnEntitled;
+            Application.deepLinkActivated -= OnDeepLink;
+        }
+
+        /// <summary>
+        /// An entitlement landing is the same moment whether it came from a purchase or a
+        /// debug grant, so the celebration lives here rather than at each call site.
+        /// </summary>
+        void OnEntitled(bool celebrate)
+        {
+            _ui.RefreshPickers();
+            if (!celebrate) { _ui.Toast("Purchases restored"); return; }
+            _ui.Toast("Full Collection unlocked - thank you!");
+            Sfx.Play("coin");
+            Sfx.Buzz(40, 60, 40);
+            try { _ui.Fx.Confetti(Screen.width / 2f, Screen.height * 0.5f, 90, 16); } catch { }
+        }
+
+        void OnDeepLink(string url) { _ui.HandleDeepLink(url); }
+
+        /// <summary>
+        /// Losing the network mid-game is worth saying out loud: the alternative is a table
+        /// that just stops, with nothing on screen explaining why.
+        /// </summary>
+        IEnumerator WatchConnectivity()
+        {
+            var wait = new WaitForSeconds(2f);
+            bool wasOnline = Application.internetReachability != NetworkReachability.NotReachable;
+            while (true)
+            {
+                yield return wait;
+                bool online = Application.internetReachability != NetworkReachability.NotReachable;
+                if (wasOnline && !online && _gc.Net != null && _gc.Net.Active)
+                    _ui.Toast("Network lost - you may drop from the game", true);
+                wasOnline = online;
+            }
         }
 
         static void Prewarm(string skin)
@@ -85,6 +139,20 @@ namespace DreidelRoyale
             Sfx.HapticsOn = Store.Get("drdl-haptics") != "0";
             Consts.IsraelMode = Store.Get("drdl-israel") == "1";
             Consts.RefreshSides();
+        }
+
+        /// <summary>
+        /// A stored choice can go stale: a save restored onto a fresh install names a dreidel
+        /// that has not been earned here, and a table that has not been unlocked. Falling back
+        /// is quieter than showing a locked piece on the table.
+        /// </summary>
+        void ValidateSavedChoices()
+        {
+            var S = Stats.Load();
+            var skin = Unlocks.Skins.Find(d => d.Id == _gc.MySkinChoice);
+            if (skin == null || !Unlocks.SkinUnlocked(skin, S)) _gc.MySkinChoice = "wood";
+            if (!EnvDefs.All.ContainsKey(_gc.HostEnvChoice) || !Unlocks.EnvUnlocked(_gc.HostEnvChoice, S))
+                _gc.HostEnvChoice = "midnight";
         }
 
         void BuildCamera()

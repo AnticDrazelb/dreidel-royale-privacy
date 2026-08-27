@@ -41,7 +41,8 @@ namespace DreidelRoyale.UI
             }
         }
 
-        public static void RenderSkin(Transform container, string selected, Action<string> onPick)
+        public static void RenderSkin(Transform container, string selected, Action<string> onPick,
+                                      bool showIap = true)
         {
             UIKit.Clear(container);
             var S = Stats.Load();
@@ -60,15 +61,65 @@ namespace DreidelRoyale.UI
                      {
                          if (!unlocked)
                          {
-                             UI().Toast(captured.Premium
-                                 ? captured.Name + " — unlock the Full Collection"
-                                 : captured.Unlock.Hint(captured.Name, S), true);
+                             if (captured.Premium)
+                             {
+                                 // A premium tap is interest, not a mistake: say what it is
+                                 // and open the store rather than just refusing.
+                                 UI().Toast(captured.Name + " is part of the Full Collection");
+                                 Sfx.Play("tick"); Sfx.Buzz(20);
+                                 if (!Iap.RequestFullCollection())
+                                     UI().Toast("Purchases are available in the store version of the game", true);
+                             }
+                             else
+                             {
+                                 UI().Toast(captured.Unlock.Hint(captured.Name, S), true);
+                                 Sfx.Play("elim"); Sfx.Buzz(30);
+                             }
                              return;
                          }
                          Sfx.Play("tick"); Sfx.Buzz(10);
                          onPick(captured.Id);
                      });
             }
+
+            AddIapRow(container, showIap);
+        }
+
+        /// <summary>
+        /// Buy and restore sit directly under the dreidel grid rather than only in Records:
+        /// the moment someone wants a locked piece is the moment they are looking at it. The
+        /// row is pulled once the collection is owned, and never appears on the mid-game
+        /// Change Dreidel screen, which stays uncluttered.
+        /// </summary>
+        static void AddIapRow(Transform container, bool showIap)
+        {
+            var parent = container.parent != null ? container.parent : container;
+
+            // Pickers re-render on every pick, so the row has to be found and replaced
+            // rather than appended - otherwise a few taps stack a column of buy buttons.
+            var name = "iap-row-" + container.GetInstanceID();
+            var existing = parent.Find(name);
+            if (existing != null) UnityEngine.Object.Destroy(existing.gameObject);
+
+            if (!showIap || Unlocks.OwnsFullCollection()) return;
+
+            var row = UIKit.Row(parent, 8f, 40f);
+            row.name = name;
+            row.transform.SetSiblingIndex(container.GetSiblingIndex() + 1);
+            UIKit.Btn(row.transform, "Unlock Full Collection", UIKit.BtnKind.Primary, () =>
+            {
+                Sfx.Play("tick");
+                if (!Iap.RequestFullCollection())
+                    UI().Toast("Purchases are available in the store version of the game", true);
+            }, 190f, 38f, 13);
+            UIKit.Btn(row.transform, "Restore", UIKit.BtnKind.Text, () =>
+            {
+                Sfx.Play("tick");
+                if (Iap.RequestRestore()) return;
+                UI().Toast(Unlocks.OwnsFullCollection() ? "Full Collection already unlocked"
+                                                        : "Nothing to restore yet",
+                           !Unlocks.OwnsFullCollection());
+            }, 90f, 38f, 13);
         }
 
         static UIManager UI() { return UIManager.I; }

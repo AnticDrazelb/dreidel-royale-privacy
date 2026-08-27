@@ -60,23 +60,32 @@ namespace DreidelRoyale.Core
 
         /// <summary>
         /// The spin log as emoji, so a shared result reads as a story rather than a scoreline.
+        /// Long games are trimmed to the last 40 behind a leading ellipsis, and laid out ten
+        /// to a line - a single 40-character run wraps differently in every messaging app and
+        /// stops looking like a grid.
         /// </summary>
-        public static string HistoryEmoji(System.Collections.Generic.IList<string> history, int max = 24)
+        public static string HistoryEmoji(System.Collections.Generic.IList<string> history, int max = 40)
         {
             if (history == null || history.Count == 0) return "";
-            var sb = new System.Text.StringBuilder();
+
             int from = Mathf.Max(0, history.Count - max);
+            string prefix = from > 0 ? "…" : "";
+
+            var sb = new System.Text.StringBuilder();
+            int col = 0;
             for (int i = from; i < history.Count; i++)
             {
+                if (col == 10) { sb.Append('\n'); col = 0; }
                 switch (history[i])
                 {
                     case "GIMEL": sb.Append("\U0001F7E1"); break;   // the whole pot
-                    case "HEI":   sb.Append("\U0001F7E2"); break;   // half
+                    case "HEI":   sb.Append("\U0001F535"); break;   // half
                     case "NUN":   sb.Append("⚪"); break;       // nothing
-                    default:      sb.Append("\U0001F534"); break;   // paid in
+                    default:      sb.Append("\U0001F534"); break;   // paid in - shin or pei
                 }
+                col++;
             }
-            return sb.ToString();
+            return prefix + sb.ToString();
         }
     }
 }

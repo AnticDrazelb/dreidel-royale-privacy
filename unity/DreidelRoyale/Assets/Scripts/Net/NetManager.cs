@@ -52,6 +52,9 @@ namespace DreidelRoyale.Net
 
         public bool Active { get { return Transport != null && (IsHost || _conn != null); } }
 
+        /// <summary>How many seats are at the table, for the "is anyone here" checks.</summary>
+        public int PlayerCount { get { return GC.G != null ? GC.G.Players.Count : 0; } }
+
         void Update() { if (Transport != null) Transport.Poll(); }
 
         // ---------------------------------------------------------------
@@ -163,7 +166,16 @@ namespace DreidelRoyale.Net
 
         void HandleError(string why)
         {
-            if (_takeoverInProgress) { _takeoverInProgress = false; ScheduleReconnectOrGiveUp(); return; }
+            if (_takeoverInProgress)
+            {
+                // Someone else claimed the chair first. Our seat is forfeited over there, so
+                // rejoining lands us as an observer - worth saying, because otherwise the
+                // game simply reappears with us unable to spin.
+                _takeoverInProgress = false;
+                UI.Toast("Another host has taken over the table", true);
+                ScheduleReconnectOrGiveUp();
+                return;
+            }
             if (_reconnecting) { ScheduleReconnectOrGiveUp(); return; }
             if (_quickMatching)
             {
@@ -535,6 +547,23 @@ namespace DreidelRoyale.Net
         }
 
         public void SendSkin(string skin) { Send(new NetMsg { type = MsgType.Skin, skin = skin }); }
+
+        /// <summary>
+        /// Tell the table about my new dreidel. The host owns the seat list, so it writes its
+        /// own seat and broadcasts; a guest asks the host to write theirs.
+        /// </summary>
+        public void AnnounceSkin(string skin)
+        {
+            if (!Active) return;
+            if (IsHost)
+            {
+                var me = GC.G.Players.FirstOrDefault(p => p.Id == (MySeatId ?? "HOST"));
+                if (me == null) return;
+                me.Skin = skin;
+                Broadcast();
+            }
+            else SendSkin(skin);
+        }
         public void SendVote(string env) { Send(new NetMsg { type = MsgType.Vote, env = env }); }
 
         /// <summary>

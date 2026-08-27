@@ -31,8 +31,9 @@ namespace DreidelRoyale.Net
         string _pendingMode;     // "HOST", "JOIN" or "QUICK" - what the name screen leads into
         Text _quickStatus;
 
-        Transform _modeRow;
-        Text _modeNote, _codeTag, _codeHint;
+        Transform _modeRow, _lobbyRulesPicker, _lobbyAntePicker;
+        Text _lobbyAnteLabel;
+        Text _modeNote, _codeTag, _codeHint, _nameTag;
 
         /// <summary>
         /// Online (relay) or same-Wi-Fi (sockets). Remembered between runs, because whichever
@@ -55,8 +56,8 @@ namespace DreidelRoyale.Net
         {
             var h = UIKit.Label(c, "Who Spins?", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 46);
-            var tag = UIKit.Label(c, "Pick your table name", 14, Theme.Sub);
-            UIKit.SetSize(tag, 340, 24);
+            _nameTag = UIKit.Label(c, "Pick your table name", 14, Theme.Sub);
+            UIKit.SetSize(_nameTag, 340, 24);
 
             _nameInput = UIKit.Input(c, "YOUR NAME", 10);
 
@@ -156,6 +157,11 @@ namespace DreidelRoyale.Net
             UIKit.SectionLabel(c, "Table - tap to vote");
             _lobbyEnvPicker = UIKit.Grid(c, new Vector2(96, 92)).transform;
 
+            UIKit.SectionLabel(c, "Game style - host sets");
+            _lobbyRulesPicker = UIKit.Row(c, 6f, 44f).transform;
+            _lobbyAnteLabel = UIKit.SectionLabel(c, "Starting ante");
+            _lobbyAntePicker = UIKit.Row(c, 6f, 44f).transform;
+
             UIKit.Spacer(c, 6f);
             _startBtn = UIKit.Btn(c, "Start Game", UIKit.BtnKind.Primary, () =>
             {
@@ -167,7 +173,9 @@ namespace DreidelRoyale.Net
 
             UIKit.Btn(c, "Leave Room", UIKit.BtnKind.Ghost, () =>
             {
-                Sfx.Play("tick");
+                Sfx.Play("tick"); Sfx.Buzz(10);
+                // Same teardown as quitting a game: tell anyone connected before going.
+                if (Net.IsHost && Net.PlayerCount > 1) UI.Toast("Closing the table...");
                 Net.LeaveEverything();
                 GC.IsLocalGame = true;
                 UI.Show("landing");
@@ -287,6 +295,25 @@ namespace DreidelRoyale.Net
         // ---------------------------------------------------------------
         //  flow
         // ---------------------------------------------------------------
+        /// <summary>
+        /// An invite arriving from outside the app: the code is known before the name is, so
+        /// the name screen is told what it is leading into and says so.
+        /// </summary>
+        public void BeginJoinWithCode(string code)
+        {
+            _pendingMode = "JOIN";
+            _prefillCode = code;
+            UI.Show("net-name");
+        }
+
+        string _prefillCode;
+
+        /// <summary>Re-render the dreidel picker on this screen - used when an unlock lands.</summary>
+        public void RefreshSkinPicker()
+        {
+            if (_nameSkinPicker != null && UI.Current == "net-name") OnNameScreenShown();
+        }
+
         public void BeginHost() { _pendingMode = "HOST"; UI.Show("net-name"); }
         public void BeginJoin() { _pendingMode = "JOIN"; UI.Show("net-name"); }
         public void BeginQuickMatch() { _pendingMode = "QUICK"; UI.Show("net-name"); }
@@ -333,6 +360,11 @@ namespace DreidelRoyale.Net
             var saved = Store.Get("drdl-net-online");
             if (!string.IsNullOrEmpty(saved)) _online = saved == "1";
 
+            if (_nameTag != null)
+                _nameTag.text = string.IsNullOrEmpty(_prefillCode)
+                    ? "Pick your table name"
+                    : "Joining table <color=#f2c14e><b>" + _prefillCode + "</b></color> - pick your name";
+
             // Quick Match asks the local network who is open, and only a Wi-Fi table can
             // answer that, so it has no choice to offer.
             bool pickable = _pendingMode != "QUICK";
@@ -373,8 +405,22 @@ namespace DreidelRoyale.Net
         void ConfirmName()
         {
             var n = MyName();
+
+            // The same secret the web build accepted here. It is debug-gated inside, so on a
+            // release build this is just a name.
+            if (UI.CheckTestUnlock(n)) { _nameInput.text = ""; OnNameScreenShown(); return; }
+
             Store.Set("drdl-name", n);
             Sfx.Play("tick");
+
+            if (!string.IsNullOrEmpty(_prefillCode))
+            {
+                var code = _prefillCode;
+                _prefillCode = null;
+                Net.JoinGame(MakeTransport(), code, n);
+                return;
+            }
+
             if (_pendingMode == "HOST") Net.HostGame(MakeTransport(), n);
             else if (_pendingMode == "QUICK")
             {
@@ -427,6 +473,7 @@ namespace DreidelRoyale.Net
         {
             Sfx.Play("tick");
             var code = Net.RoomCodeText ?? "";
+            if (string.IsNullOrEmpty(code)) { UI.Toast("No room code yet - one moment", true); return; }
             var body = "Join my Dreidel Royale table - the code is " + code + "."
                      + "\n\nOpen Dreidel Royale, tap Join, and enter " + code + ".";
 
@@ -477,8 +524,56 @@ namespace DreidelRoyale.Net
             if (_joinStatus != null) _joinStatus.text = why;
         }
 
+        /// <summary>
+        /// Game style and stakes belong to the host, so a guest's tap is answered with the
+        /// reason rather than silently ignored - the chips look tappable either way.
+        /// </summary>
+        void RenderLobbyRules()
+        {
+            if (_lobbyRulesPicker == null) return;
+            var sel = string.IsNullOrEmpty(GC.G.Rules) ? "rising" : GC.G.Rules;
+
+            UIKit.Clear(_lobbyRulesPicker);
+            foreach (var r in Rules.Defs)
+            {
+                var cr = r;
+                UIKit.Chip(_lobbyRulesPicker, r.Label, sel == r.Id, () =>
+                {
+                    if (!Net.IsHost) { UI.Toast("Only the host sets the game style", true); return; }
+                    GC.G.Rules = cr.Id;
+                    GC.RulesMode = cr.Id;
+                    Store.Set("drdl-rules", cr.Id);
+                    Sfx.Play("tick"); Sfx.Buzz(10);
+                    Net.Broadcast();
+                    RefreshLobby();
+                }, 100f, 40f, 13);
+            }
+
+            UIKit.Clear(_lobbyAntePicker);
+            int ante = Mathf.Max(1, GC.G.Ante);
+            for (int n = 1; n <= 3; n++)
+            {
+                int cn = n;
+                UIKit.Chip(_lobbyAntePicker, n.ToString(), ante == n, () =>
+                {
+                    if (!Net.IsHost) { UI.Toast("Only the host sets the ante", true); return; }
+                    GC.G.Ante = cn; GC.G.BaseAnte = cn; GC.AnteAmount = cn;
+                    Store.Set("drdl-ante", cn.ToString());
+                    Sfx.Play("tick"); Sfx.Buzz(10);
+                    Net.Broadcast();
+                    RefreshLobby();
+                }, 48f, 40f, 15);
+            }
+
+            if (_lobbyAnteLabel != null)
+                _lobbyAnteLabel.text = (sel == "classic"
+                    ? "Starting ante - fixed all game"
+                    : "Starting ante - rises every " + Rules.RiseEveryFor(sel) + " rounds").ToUpper();
+        }
+
         public void RefreshLobby()
         {
+            RenderLobbyRules();
             if (_lobbyList == null) return;
             UIKit.Clear(_lobbyList);
 
