@@ -47,6 +47,7 @@ namespace DreidelRoyale.UI
         InputField _cpuName, _localName;
         readonly InputField[] _customFaces = new InputField[4];
         Button _resumeBtn;
+        Text _resumeLabel;
 
         readonly Queue<KeyValuePair<string, bool>> _toastQ = new Queue<KeyValuePair<string, bool>>();
         bool _toastShowing;
@@ -148,6 +149,7 @@ namespace DreidelRoyale.UI
                 Sfx.Play("tick");
                 if (!GC.ResumeCpuGame()) Toast("That game could not be restored", true);
             });
+            _resumeLabel = _resumeBtn.GetComponentInChildren<Text>();
             _resumeBtn.gameObject.SetActive(false);
 
             UIKit.Btn(c, "Single Player", UIKit.BtnKind.Primary, () => { Sfx.Play("tick"); Show("cpu"); });
@@ -559,10 +561,17 @@ namespace DreidelRoyale.UI
             else if (id == "custom") RefreshCustom();
             else if (id == "records") RefreshRecords();
             else if (id == "change") RefreshChange();
-            else if (id == "landing") _resumeBtn.gameObject.SetActive(GC.HasCpuSave());
+            else if (id == "landing") RefreshResumeButton();
 
             RectTransform rt;
             if (_screens.TryGetValue(id, out rt)) StartCoroutine(ScreenIn(rt));
+        }
+
+        void RefreshResumeButton()
+        {
+            int round = GC.SavedRound();
+            _resumeBtn.gameObject.SetActive(round > 0);
+            if (round > 0 && _resumeLabel != null) _resumeLabel.text = "Resume Game - Round " + round;
         }
 
         IEnumerator ScreenIn(RectTransform rt)

@@ -117,6 +117,8 @@ namespace DreidelRoyale.Core
             G.Status = GameStatus.Playing;
             G.Pot = 0;
             G.Round = 1;
+            G.TurnIndex = 0;
+            G.Ante = Mathf.Max(1, G.BaseAnte);   // stakes reset with the rounds
             foreach (var p in G.Players)
             {
                 p.Coins = Rules.StartCoinsFor(G.Rules);
@@ -680,7 +682,8 @@ namespace DreidelRoyale.Core
         {
             UI.HideWinner();
             View.SetDrama(false);
-            StartCoroutine(Countdown(BeginPlay));
+            BeginPlay();
+            MaybeCpuTurn();
         }
 
         // ---------------------------------------------------------------
@@ -710,10 +713,20 @@ namespace DreidelRoyale.Core
 
         public void ClearCpuSave() { Store.Set("drdl-save", ""); }
 
-        public bool HasCpuSave()
+        public bool HasCpuSave() { return SavedRound() > 0; }
+
+        /// <summary>The round a saved game would resume at, or 0 when there is nothing saved.</summary>
+        public int SavedRound()
         {
-            var raw = Store.Get("drdl-save");
-            return !string.IsNullOrEmpty(raw);
+            try
+            {
+                var raw = Store.Get("drdl-save");
+                if (string.IsNullOrEmpty(raw)) return 0;
+                var w = JsonUtility.FromJson<Wrapper>(raw);
+                if (w == null || w.blob == null || w.blob.players == null || w.blob.players.Count < 2) return 0;
+                return Mathf.Max(1, w.blob.round);
+            }
+            catch { return 0; }
         }
 
         public bool ResumeCpuGame()
