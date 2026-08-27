@@ -56,6 +56,7 @@ namespace DreidelRoyale.UI
             BuildTurnBadge();
             BuildTop();
             BuildBottom();
+            if (UI != null && UI.Fx != null) UI.Fx.PotSource = PotBox;
             Root.gameObject.SetActive(false);
         }
 

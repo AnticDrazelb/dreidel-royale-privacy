@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using DreidelRoyale.AR;
 using DreidelRoyale.Audio;
 using DreidelRoyale.Core;
 using DreidelRoyale.UI;
@@ -26,6 +27,7 @@ namespace DreidelRoyale
         UIManager _ui;
         Hud _hud;
         MusicEngine _music;
+        ArController _ar;
 
         void Awake()
         {
@@ -40,6 +42,7 @@ namespace DreidelRoyale
             BuildAudio();
             BuildWorld();
             BuildUI();
+            BuildAr();
             Wire();
 
             _gc.ApplyEnv(_gc.HostEnvChoice);
@@ -143,6 +146,39 @@ namespace DreidelRoyale
             _ui.Build(canvas);
         }
 
+        void BuildAr()
+        {
+            var go = new GameObject("AR");
+            _ar = go.AddComponent<ArController>();
+            _ar.View = _view;
+            _ar.Cam = _cam;
+            go.AddComponent<ArGestures>().Ar = _ar;
+
+            _ui.Ar = _ar;
+            _ar.OnChange = _ui.OnArChanged;
+
+            // The view asks the AR layer what it should be doing, rather than the AR layer
+            // reaching in to change it: one direction of dependency, and the flat-screen game
+            // behaves identically whether or not AR was ever compiled in.
+            _view.ArIsOn = () => _ar.IsOn;
+            _view.ArIsPlaced = () => _ar.IsPlaced;
+            _view.ArTableMode = () => _ar.TableMode;
+            _view.Gelt.EdgeRadius = () =>
+                _ar.IsOn && _ar.TableMode == "board" ? ArProps.TableRadius : 19f;
+
+            _gc.OnEnvApplied = env => _ar.NoteEnv(env);
+
+            // The capability check talks to ARCore/ARKit and can take a moment, so it runs
+            // behind the menu rather than holding up the first frame.
+            StartCoroutine(CheckArThenRefresh());
+        }
+
+        System.Collections.IEnumerator CheckArThenRefresh()
+        {
+            yield return _ar.CheckAvailability();
+            _ui.OnArChanged(false, false);
+        }
+
         void Wire()
         {
             // The 3D layer drives the sounds that have to land on the exact frame the geometry
@@ -178,6 +214,14 @@ namespace DreidelRoyale
             // The Euler's-disk rattle: a run of ticks that accelerates as the coin flattens -
             // the signature wrrrrRRRR. Tick times follow the same decay the visual uses.
             _view.Gelt.OnEuler = dur => StartCoroutine(EulerRattle(dur));
+
+            // In AR the screen-space transfer slides coins across the phone glass while
+            // everything else sits on the table - the one illusion-breaker left. Placed, the
+            // pot's legs go through the world instead: real coins leap off the stacks and arc
+            // toward the phone, and the HUD only takes delivery.
+            _ui.Fx.WorldFlyOut = count =>
+                (_ar != null && _ar.IsOn && _ar.IsPlaced) ? _view.Gelt.FlyOut(count) : 0;
+            _view.Gelt.OnFlightGone = worldPos => _ui.Fx.DeliverFlight(_cam, worldPos);
         }
 
         // Coins land in cascades; without a floor on the interval a scatter reads as static.

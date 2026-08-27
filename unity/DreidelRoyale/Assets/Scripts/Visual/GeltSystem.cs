@@ -41,6 +41,14 @@ namespace DreidelRoyale.Visual
 
         public GeltSystem(SceneRig rig) { _rig = rig; }
 
+        /// <summary>
+        /// The edge coins fall off. Board mode: the brass rim, and coins past it drop to the
+        /// real floor. Shadow mode: there is no visible board, so the real table IS the
+        /// surface — an invisible cliff mid-table would read as a bug. Flat-screen: the
+        /// 20-unit ground, so they scatter across it instead.
+        /// </summary>
+        public System.Func<float> EdgeRadius = () => 19f;
+
         public bool Idle { get { return _mode == "idle"; } }
 
         static void GoHome(Transform m)
@@ -203,7 +211,7 @@ namespace DreidelRoyale.Visual
 
             if (_mode == "flying")
             {
-                const float R = 19f - 0.32f;
+                float R = EdgeRadius() - 0.32f;
                 int moving = 0;
                 foreach (var b in _bodies)
                 {

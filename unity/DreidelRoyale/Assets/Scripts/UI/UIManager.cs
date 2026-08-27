@@ -52,6 +52,12 @@ namespace DreidelRoyale.UI
         readonly Queue<KeyValuePair<string, bool>> _toastQ = new Queue<KeyValuePair<string, bool>>();
         bool _toastShowing;
 
+        // ---- AR ----
+        public DreidelRoyale.AR.ArController Ar;
+        Text _arLabel, _arSub, _arWhy, _arBoardLabel, _arHint;
+        RectTransform _arRow, _arHintBox;
+        Button _arLaunch;
+
         void Awake() { I = this; }
 
         // ---------------------------------------------------------------
@@ -374,6 +380,7 @@ namespace DreidelRoyale.UI
             BuildPause();
             BuildHowTo();
             BuildWinner();
+            BuildArHint();
 
             var tz = UIKit.Node("toast-zone", Root);
             _toastZone = UIKit.Rect(tz);
@@ -428,6 +435,7 @@ namespace DreidelRoyale.UI
             });
 
             UIKit.Spacer(col.transform, 6f);
+            BuildArControls(col.transform);
             UIKit.Btn(col.transform, "How to Play", UIKit.BtnKind.Ghost, ShowHowTo);
             UIKit.Btn(col.transform, "Change Dreidel", UIKit.BtnKind.Ghost, () =>
             {
@@ -439,6 +447,127 @@ namespace DreidelRoyale.UI
             UIKit.Btn(col.transform, "Main Menu", UIKit.BtnKind.Danger, QuitToMenu);
 
             go.SetActive(false);
+        }
+
+        /// <summary>
+        /// The entry point is also the exit: "Exit AR" lives in the menu, not over the room.
+        /// </summary>
+        void BuildArControls(Transform parent)
+        {
+            _arLaunch = UIKit.Btn(parent, "", UIKit.BtnKind.Ghost, () => StartCoroutine(ArToggle()), 300f, 60f, 16);
+            // the button carries two lines, so its stock label is replaced by a stack
+            foreach (var t in _arLaunch.GetComponentsInChildren<Text>()) Destroy(t.gameObject);
+            _arLabel = UIKit.Label(_arLaunch.transform, "Play on your table", 16, Theme.Text,
+                                   TextAnchor.MiddleCenter, false, FontStyle.Bold);
+            var lrt = _arLabel.rectTransform;
+            lrt.anchorMin = new Vector2(0, 0.5f); lrt.anchorMax = new Vector2(1, 1);
+            lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
+            _arSub = UIKit.Label(_arLaunch.transform, "Put the board in the room with you", 11, Theme.Sub);
+            var srt = _arSub.rectTransform;
+            srt.anchorMin = new Vector2(0, 0); srt.anchorMax = new Vector2(1, 0.5f);
+            srt.offsetMin = Vector2.zero; srt.offsetMax = Vector2.zero;
+
+            _arWhy = UIKit.Label(parent, "", 11, new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.9f));
+            UIKit.SetSize(_arWhy, 300, 34);
+            _arWhy.gameObject.SetActive(false);
+
+            var row = UIKit.Row(parent, 8f, 44f);
+            _arRow = UIKit.Rect(row);
+            UIKit.Btn(row.transform, "Reposition", UIKit.BtnKind.Ghost, () =>
+            {
+                Sfx.Play("tick");
+                if (_pause.gameObject.activeSelf) TogglePause();   // placement needs the room in view
+                if (Ar != null) Ar.Unplace();
+            }, 138f, 42f, 14);
+            var boardBtn = UIKit.Btn(row.transform, "Board: Off", UIKit.BtnKind.Ghost, () =>
+            {
+                Sfx.Play("tick");
+                if (Ar == null) return;
+                var m = Ar.SetTableMode(Ar.TableMode == "shadow" ? "board" : "shadow");
+                if (_arBoardLabel != null) _arBoardLabel.text = m == "board" ? "Board: On" : "Board: Off";
+            }, 138f, 42f, 14);
+            _arBoardLabel = boardBtn.GetComponentInChildren<Text>();
+            _arRow.gameObject.SetActive(false);
+        }
+
+        IEnumerator ArToggle()
+        {
+            Sfx.Play("tick");
+            if (Ar == null) yield break;
+            if (Ar.IsOn) { Ar.Exit(); yield break; }        // same button, both directions
+
+            if (!Ar.Available) yield return StartCoroutine(Ar.CheckAvailability());
+            if (!Ar.Available) { RefreshArButton(); Toast(Ar.WhyNot ?? "AR isn't available here", true); yield break; }
+
+            if (!Ar.Enter()) { Toast("AR could not start", true); yield break; }
+            // the pause sheet would sit on top of the room
+            if (_pause.gameObject.activeSelf) TogglePause();
+        }
+
+        /// <summary>
+        /// Mirrors the AR layer's state onto the menu and the hint. Called on every change,
+        /// and once at boot after the capability check settles.
+        /// </summary>
+        public void OnArChanged(bool on, bool placed)
+        {
+            RefreshArButton();
+            if (_arRow != null) _arRow.gameObject.SetActive(on);
+            if (Embers != null) Embers.gameObject.SetActive(!on);   // the overlay is on the glass
+            _shake = 0f;    // a charge left mid-flight would freeze the board off-centre
+
+            if (_arHintBox != null) _arHintBox.gameObject.SetActive(on && !placed);
+            if (on && placed) Toast("Drag to turn - pinch to resize");
+            if (_arBoardLabel != null && Ar != null)
+                _arBoardLabel.text = Ar.TableMode == "board" ? "Board: On" : "Board: Off";
+        }
+
+        void RefreshArButton()
+        {
+            if (_arLabel == null || Ar == null) return;
+            bool on = Ar.IsOn;
+            _arLabel.text = on ? "Exit AR" : "Play on your table";
+            _arSub.text = on ? "Back to the full-screen board"
+                             : Ar.Available ? "Full tracking - walk around the board"
+                                            : "Put the board in the room with you";
+            if (_arWhy != null)
+            {
+                bool show = !Ar.Available && !string.IsNullOrEmpty(Ar.WhyNot);
+                _arWhy.gameObject.SetActive(show);
+                if (show) _arWhy.text = Ar.WhyNot;
+            }
+            if (_arLaunch != null) _arLaunch.interactable = Ar.Available || on;
+        }
+
+        void BuildArHint()
+        {
+            var go = UIKit.Node("ar-hint", Root);
+            _arHintBox = UIKit.Rect(go);
+            _arHintBox.anchorMin = _arHintBox.anchorMax = new Vector2(0.5f, 1f);
+            _arHintBox.pivot = new Vector2(0.5f, 1f);
+            _arHintBox.anchoredPosition = new Vector2(0, -60);
+            _arHintBox.sizeDelta = new Vector2(300, 40);
+            var img = go.AddComponent<Image>();
+            img.sprite = Theme.Rounded(20f); img.type = Image.Type.Sliced;
+            img.color = new Color(Theme.Night.r, Theme.Night.g, Theme.Night.b, 0.82f);
+            img.raycastTarget = false;
+            UIKit.Border(go.transform, new Color(Theme.Gold.r, Theme.Gold.g, Theme.Gold.b, 0.4f), 20f);
+            _arHint = UIKit.Label(go.transform, "Looking for a flat surface...", 13, Theme.GoldHot);
+            UIKit.Stretch(_arHint.gameObject, 10f);
+            go.SetActive(false);
+        }
+
+        /// <summary>
+        /// While the board is unplaced the hint tracks the tracker: it really is looking for a
+        /// plane, and it says so until it finds one.
+        /// </summary>
+        void UpdateArHint()
+        {
+            if (Ar == null || _arHintBox == null) return;
+            bool want = Ar.IsOn && !Ar.IsPlaced;
+            if (_arHintBox.gameObject.activeSelf != want) _arHintBox.gameObject.SetActive(want);
+            if (!want) return;
+            _arHint.text = Ar.HasSurface ? "Tap to set the board down" : "Looking for a flat surface...";
+            _arHint.color = Ar.HasSurface ? Theme.GoldHot : Theme.Sub;
         }
 
         Text _howtoAcro;
@@ -977,8 +1106,13 @@ namespace DreidelRoyale.UI
             _impactRoutine = null;
         }
 
+        void Update() { UpdateArHint(); }
+
         void LateUpdate()
         {
+            // Screen shake tears the board off the table in AR, where the camera is the phone
+            // and the world is supposed to be standing still in the room.
+            if (Ar != null && Ar.IsOn) return;
             float amount = _shake * 0.05f + _impact * 0.012f;
             if (amount > 0f && View != null && View.Cam != null)
             {

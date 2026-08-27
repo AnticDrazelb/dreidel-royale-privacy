@@ -32,6 +32,14 @@ namespace DreidelRoyale.UI
         readonly List<Particle> _parts = new List<Particle>();
         readonly List<Coin> _coins = new List<Coin>();
 
+        /// <summary>
+        /// Set by the AR layer. Given a coin count, sends that many through the WORLD instead
+        /// of across the glass and returns how many it took; 0 means "not in AR, do it here".
+        /// </summary>
+        public System.Func<int, int> WorldFlyOut = _ => 0;
+
+        readonly Queue<RectTransform> _flightTargets = new Queue<RectTransform>();
+
         static readonly Color[] ConfettiColors =
         {
             new Color(242/255f,193/255f,78/255f), new Color(75/255f,102/255f,230/255f),
@@ -112,7 +120,59 @@ namespace DreidelRoyale.UI
         public void FlyGelt(RectTransform from, RectTransform to, int count, float stagger = 0.07f)
         {
             if (from == null || to == null || count <= 0) return;
+
+            // In AR a full-length screen flight slides coins across the phone glass while the
+            // world sits on the table. The pot's outbound leg goes through the world instead;
+            // the HUD only takes delivery at the far end.
+            if (from == PotSource)
+            {
+                int n = WorldFlyOut(Mathf.Min(count, 10));
+                if (n > 0)
+                {
+                    for (int i = 0; i < n; i++) _flightTargets.Enqueue(to);
+                    return;
+                }
+            }
             StartCoroutine(FlyRoutine(from, to, Mathf.Min(count, 12), stagger));
+        }
+
+        /// <summary>The pot box, so an outbound leg can be told apart from an inbound one.</summary>
+        public RectTransform PotSource;
+
+        /// <summary>
+        /// A coin that finished its arc through the world. It projects to the screen and hops
+        /// the last inch into its HUD row - the world does the journey, the glass only takes
+        /// delivery. A coin that vanished off-screen still lands its delivery.
+        /// </summary>
+        public void DeliverFlight(Camera cam, Vector3 worldPos)
+        {
+            if (_flightTargets.Count == 0) return;
+            var target = _flightTargets.Dequeue();
+            if (target == null) return;
+
+            Vector2 from;
+            var v = cam != null ? cam.WorldToViewportPoint(worldPos) : new Vector3(0.5f, 0.5f, -1f);
+            bool onScreen = v.z > 0f && v.x > 0f && v.x < 1f && v.y > 0f && v.y < 1f;
+            if (onScreen) from = new Vector2(v.x * Screen.width, v.y * Screen.height);
+            else
+            {
+                var b = ScreenCentre(target);
+                from = new Vector2(b.x, b.y + 30f);
+            }
+            SpriteHop(from, target, onScreen ? 24f : 48f);
+            Sfx.Play("coin");
+        }
+
+        /// <summary>A short screen-space hop - the last leg of a flight that began in the world.</summary>
+        void SpriteHop(Vector2 from, RectTransform to, float arc)
+        {
+            _coins.Add(new Coin
+            {
+                A = from,
+                B = ScreenCentre(to) + new Vector2((Random.value - 0.5f) * 14f, 0f),
+                T = 0f, Speed = 0.05f + Random.value * 0.02f, Arc = arc, Target = to
+            });
+            SetVerticesDirty();
         }
 
         IEnumerator FlyRoutine(RectTransform from, RectTransform to, int count, float stagger)

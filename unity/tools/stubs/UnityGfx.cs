@@ -95,6 +95,7 @@ namespace UnityEngine
         public bool allowMSAA, allowHDR;
         public void Render(){}
         public Vector3 WorldToScreenPoint(Vector3 v){return v;}
+        public Vector3 WorldToViewportPoint(Vector3 v){return v;}
     }
     public enum CameraClearFlags { Skybox=1, Color=2, SolidColor=2, Depth=3, Nothing=4 }
     public class Light : Behaviour {

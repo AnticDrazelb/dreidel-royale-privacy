@@ -22,6 +22,30 @@ namespace DreidelRoyale.Visual
 
         PointCloud _dust, _skinBurst, _embers3d;
 
+        /// <summary>
+        /// Set by the AR layer once it exists. Everything below asks it two questions: is the
+        /// diorama on a real table, and is the phone the camera?
+        /// </summary>
+        public System.Func<bool> ArIsOn = () => false;
+        public System.Func<bool> ArIsPlaced = () => false;
+        public System.Func<string> ArTableMode = () => "shadow";
+
+        bool Ar { get { return ArIsOn(); } }
+
+        const float DustSize = 0.24f, BurstSize = 0.16f, EmberSize = 0.09f;
+
+        /// <summary>
+        /// Point sizes are ABSOLUTE world units and do not inherit the world group's scale.
+        /// Positions shrink with the AR diorama; the motes themselves don't, so they have to
+        /// be refitted — the same lesson as the shadow distance and the light falloff.
+        /// </summary>
+        public void SetParticleScale(float s)
+        {
+            _dust.Size = DustSize * s;
+            _skinBurst.Size = BurstSize * s;
+            _embers3d.Size = EmberSize * s;
+        }
+
         // ---- camera ----
         class CamSpec
         {
@@ -89,15 +113,15 @@ namespace DreidelRoyale.Visual
             Scuff.Build(Rig.World);
 
             _dust = new PointCloud();
-            _dust.Build(Rig.World, cam, 64, 0.24f, new Color(0.78f, 0.71f, 0.55f, 0.55f), "dust3d");
+            _dust.Build(Rig.World, cam, 64, DustSize, new Color(0.78f, 0.71f, 0.55f, 0.55f), "dust3d");
             _dust.Gravity = 4.5f; _dust.Drag = 1.6f; _dust.FloorY = 0.02f;
 
             _skinBurst = new PointCloud();
-            _skinBurst.Build(Rig.World, cam, 48, 0.16f, Color.white, "skinBurst");
+            _skinBurst.Build(Rig.World, cam, 48, BurstSize, Color.white, "skinBurst");
             _skinBurst.Gravity = 5.2f; _skinBurst.Drag = 1.4f; _skinBurst.FloorY = 0.04f; _skinBurst.Bounce = 0.3f;
 
             _embers3d = new PointCloud();
-            _embers3d.Build(Rig.World, cam, 32, 0.09f, new Color(1f, 0.72f, 0.37f, 0.8f), "embers3d");
+            _embers3d.Build(Rig.World, cam, 32, EmberSize, new Color(1f, 0.72f, 0.37f, 0.8f), "embers3d");
             _embers3d.Gravity = -0.35f;   // embers rise
             _embers3d.Drag = 0.2f; _embers3d.FloorY = -99f;
 
@@ -178,7 +202,13 @@ namespace DreidelRoyale.Visual
             float wAng = Random.value * Mathf.PI * 2f;
             float wSp = 0.10f + power * 0.16f;
             _wanderVel = new Vector3(Mathf.Cos(wAng) * wSp, 0, Mathf.Sin(wAng) * wSp);
-            _spin.WanderMax = 0.9f;
+            if (Ar)
+            {
+                // toward the player's edge, so the last seconds carry real is-it-going-over
+                // tension; the cap keeps it inside the brass rim
+                _wanderVel.z = Mathf.Abs(_wanderVel.z) * 0.6f + 0.16f + power * 0.1f;
+            }
+            _spin.WanderMax = Ar ? 2.35f : 0.9f;
 
             _tumble = null; _recover = null;
             _mode = "spin";
@@ -186,6 +216,7 @@ namespace DreidelRoyale.Visual
 
         public void StartRecover(float dur = 0.5f)
         {
+            _present = null;    // recover slerps from wherever the AR beat left it - no snap
             _recover = new RecoverState
             {
                 T = 0f, Dur = dur, Start = Time.time,
@@ -222,11 +253,19 @@ namespace DreidelRoyale.Visual
         /// <summary>The GIMEL flash: a flood of warm light off the dreidel.</summary>
         public void Burst()
         {
-            if (Rig.BurstLight) Rig.BurstLight.intensity = 6f;
+            if (Rig.BurstLight) Rig.BurstLight.intensity = Ar ? 9f : 6f;
             if (Rig.BurstSprite)
             {
                 Fx.SetGlow(Rig.BurstSprite, 1f);
                 Rig.BurstSprite.localScale = Vector3.one * 3f;
+            }
+            // In AR the win also floods the surface: a broad warm plane flashed flat on the
+            // table, so for a beat the jackpot visibly lights the room around the board.
+            if (Ar && Rig.ChargeRing)
+            {
+                Rig.ChargeRing.gameObject.SetActive(true);
+                _chargeRingLife = 0f;
+                _chargeRingPeak = 1.2f;
             }
         }
 
@@ -297,7 +336,7 @@ namespace DreidelRoyale.Visual
             float dt = Mathf.Min(Time.deltaTime, 0.05f);
             _tGlobal += dt;
 
-            CameraGlide();
+            if (!Ar) CameraGlide();     // in AR the phone IS the camera, and nothing may move it
             Candles(dt);
             PressureRing(dt);
             HeroFlourishes(dt);
@@ -366,8 +405,11 @@ namespace DreidelRoyale.Visual
 
                 // Flames are billboards; the lean is applied on top, about a precomputed axis
                 // in the diorama's local frame.
+                // The lean axis was precomputed in the diorama's local frame; Billboard writes
+                // a world rotation, so the axis is lifted into world space. Identity outside
+                // AR, correct once the board has been turned to face the player.
                 F.Bill.Extra = Mathf.Abs(F.Lean) > 0.0015f
-                    ? Quaternion.AngleAxis(F.Lean * Mathf.Rad2Deg, F.LeanAxis)
+                    ? Quaternion.AngleAxis(F.Lean * Mathf.Rad2Deg, Rig.World.rotation * F.LeanAxis)
                     : Quaternion.identity;
 
                 if (F.Halo) Fx.SetGlow(F.Halo, 0.55f * f);
@@ -766,6 +808,7 @@ namespace DreidelRoyale.Visual
                         root.localPosition = new Vector3(root.localPosition.x, DreidelRig.LIE_Y, root.localPosition.z);
                         ApplyYaw(_tumble.FinalYaw);
                         _mode = "rest";
+                        StartPresent();          // AR's stand-in for the crane shot
                     }
                     break;
                 }
@@ -773,6 +816,7 @@ namespace DreidelRoyale.Visual
                 case "rest":
                     // stillness; faint breathing of the candle light
                     Rig.GlowLight.intensity = 0.5f + Mathf.Sin(_tGlobal * 2.2f) * 0.06f;
+                    if (_present != null) PresentStep(dt);
                     break;
 
                 case "recover":
@@ -795,6 +839,109 @@ namespace DreidelRoyale.Visual
                         _mode = "idle";
                     }
                     break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// In normal play the camera cranes overhead when the dreidel falls, so you can read
+        /// the face that came up. In AR the phone IS the camera and nothing may move it, so
+        /// the result comes to the viewer instead: after a beat to let the clatter finish, the
+        /// dreidel rises off the table, turns its winning face toward the lens, holds, and
+        /// settles back exactly where it fell.
+        ///
+        /// Purely cosmetic — the result is decided by the landing yaw, never read off the
+        /// geometry here.
+        /// </summary>
+        class PresentState
+        {
+            public string Phase = "wait";
+            public float T, Y0;
+            public Quaternion From, To;
+        }
+
+        PresentState _present;
+
+        const float PresentWait = 0.35f, PresentUp = 0.55f, PresentHold = 1.15f,
+                    PresentDown = 0.5f, PresentLift = 0.5f, PresentLean = 0.55f;
+
+        void StartPresent()
+        {
+            if (Ar && ArIsPlaced()) _present = new PresentState();
+        }
+
+        /// <summary>
+        /// Aim is recomputed when the lift starts, not when the dreidel lands, so a phone that
+        /// moved during the clatter still gets the face turned to where it is now.
+        /// </summary>
+        bool PresentAim(out Quaternion aimLocal)
+        {
+            aimLocal = Quaternion.identity;
+            var here = Dreidel.Root.position;
+            var toLens = Cam.transform.position - here;
+            if (toLens.sqrMagnitude < 1e-6f) return false;
+
+            var aim = Vector3.Lerp(Vector3.up, toLens.normalized, PresentLean);
+            aim.y = Mathf.Max(aim.y, 0.35f);      // never lean so far it rolls onto its face
+            var lean = Quaternion.FromToRotation(Vector3.up, aim.normalized);
+
+            // that lean is a world-space turn; bring it back into whatever space root sits in
+            var parentW = Dreidel.Root.parent != null ? Dreidel.Root.parent.rotation : Quaternion.identity;
+            aimLocal = Quaternion.Inverse(parentW) * lean * Dreidel.Root.rotation;
+            return true;
+        }
+
+        void PresentStep(float dt)
+        {
+            if (!Ar || Cam == null)
+            {
+                // AR exited mid-beat - put it back down
+                if (_present != null && _present.Phase != "wait")
+                {
+                    Dreidel.Root.localRotation = _present.From;
+                    Dreidel.Root.localPosition = new Vector3(Dreidel.Root.localPosition.x, _present.Y0,
+                                                             Dreidel.Root.localPosition.z);
+                }
+                _present = null;
+                return;
+            }
+
+            _present.T += dt;
+            var root = Dreidel.Root;
+
+            if (_present.Phase == "wait")
+            {
+                if (_present.T < PresentWait) return;
+                Quaternion to;
+                if (!PresentAim(out to)) { _present = null; return; }
+                _present = new PresentState
+                {
+                    Phase = "up", T = 0f, From = root.localRotation, To = to, Y0 = root.localPosition.y
+                };
+            }
+            else if (_present.Phase == "up")
+            {
+                float e = EaseOutCubic(Clamp01(_present.T / PresentUp));
+                root.localRotation = Quaternion.Slerp(_present.From, _present.To, e);
+                root.localPosition = new Vector3(root.localPosition.x, _present.Y0 + PresentLift * e,
+                                                 root.localPosition.z);
+                if (_present.T >= PresentUp) { _present.Phase = "hold"; _present.T = 0f; }
+            }
+            else if (_present.Phase == "hold")
+            {
+                if (_present.T >= PresentHold) { _present.Phase = "down"; _present.T = 0f; }
+            }
+            else
+            {
+                float e = EaseOutCubic(Clamp01(_present.T / PresentDown));
+                root.localRotation = Quaternion.Slerp(_present.To, _present.From, e);
+                root.localPosition = new Vector3(root.localPosition.x,
+                                                 _present.Y0 + PresentLift * (1f - e), root.localPosition.z);
+                if (_present.T >= PresentDown)
+                {
+                    root.localRotation = _present.From;
+                    root.localPosition = new Vector3(root.localPosition.x, _present.Y0, root.localPosition.z);
+                    _present = null;
                 }
             }
         }

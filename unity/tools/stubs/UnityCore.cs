@@ -63,6 +63,7 @@ namespace UnityEngine
         public static Quaternion Slerp(Quaternion a, Quaternion b, float t){return a;}
         public static Quaternion LookRotation(Vector3 f){return identity;}
         public static Quaternion LookRotation(Vector3 f, Vector3 u){return identity;}
+        public static Quaternion FromToRotation(Vector3 a, Vector3 b){return identity;}
         public static Quaternion operator*(Quaternion a, Quaternion b){return a;}
         public static Vector3 operator*(Quaternion a, Vector3 b){return b;}
     }
@@ -180,6 +181,10 @@ namespace UnityEngine
         public Transform Find(string n){return null;}
         public void SetAsFirstSibling(){} public void SetAsLastSibling(){} public void SetSiblingIndex(int i){}
         public void LookAt(Vector3 v){} public void LookAt(Transform t){}
+        public void SetPositionAndRotation(Vector3 p, Quaternion r){}
+        public void Rotate(float x, float y, float z){}
+        public void Rotate(float x, float y, float z, Space s){}
+        public void Rotate(Vector3 axis, float angle, Space s){}
         public Vector3 TransformPoint(Vector3 v){return v;}
         public Vector3 InverseTransformPoint(Vector3 v){return v;}
         public IEnumerator GetEnumerator(){return null;}
@@ -206,7 +211,7 @@ namespace UnityEngine
     public enum ScreenOrientation { Portrait, LandscapeLeft }
     public static class Application {
         public static int targetFrameRate;
-        public static bool isPlaying;
+        public static bool isPlaying, isMobilePlatform;
         public static void Quit(){}
     }
     public static class Input {
@@ -214,7 +219,11 @@ namespace UnityEngine
         public static bool GetKeyUp(KeyCode k){return false;}
         public static bool GetKey(KeyCode k){return false;}
         public static bool GetMouseButtonDown(int b){return false;}
+        public static bool GetMouseButtonUp(int b){return false;}
+        public static bool GetMouseButton(int b){return false;}
         public static Vector3 mousePosition { get { return Vector3.zero; } }
+        public static int touchCount { get { return 0; } }
+        public static Touch GetTouch(int i){return default(Touch);}
     }
     public enum KeyCode { Space, Escape, Return }
     public static class PlayerPrefs {
@@ -236,6 +245,7 @@ namespace UnityEngine
     public static class Handheld { public static void Vibrate(){} }
     public static class QualitySettings {
         public static ShadowQuality shadows; public static ShadowResolution shadowResolution;
+        public static float shadowDistance;
     }
     public enum ShadowQuality { Disable, HardOnly, All }
     public enum ShadowResolution { Low, Medium, High, VeryHigh }

@@ -12,7 +12,11 @@ namespace UnityEngine.Events
 
 namespace UnityEngine.EventSystems
 {
-    public class EventSystem : UnityEngine.Behaviour {}
+    public class EventSystem : UnityEngine.Behaviour {
+        public static EventSystem current;
+        public bool IsPointerOverGameObject(){return false;}
+        public bool IsPointerOverGameObject(int pointerId){return false;}
+    }
     public class StandaloneInputModule : UnityEngine.Behaviour {}
     public class PointerEventData { public Vector2 position; public int pointerId; }
     public interface IPointerDownHandler { void OnPointerDown(PointerEventData e); }

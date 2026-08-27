@@ -45,6 +45,9 @@ namespace DreidelRoyale.Core
 
         public string AppliedEnv { get; private set; }
 
+        /// <summary>Raised after a table is dressed, so the AR layer can honour its wishes.</summary>
+        public Action<EnvDef> OnEnvApplied;
+
         void Awake() { I = this; }
 
         // ---------------------------------------------------------------
@@ -54,6 +57,7 @@ namespace DreidelRoyale.Core
             var env = EnvDefs.Get(id);
             View.SetEnv(env);
             if (UI != null) UI.ApplyEnvBackdrop(env);
+            if (OnEnvApplied != null) OnEnvApplied(env);
         }
 
         // ---------------------------------------------------------------
