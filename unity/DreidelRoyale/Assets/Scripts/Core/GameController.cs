@@ -206,9 +206,11 @@ namespace DreidelRoyale.Core
         {
             if (_showdownShown) return;
             _showdownShown = true;
-            View.SetDrama(true);
-            Music.SetIntensity(2);
             UI.ShowShowdownBanner();
+            Music.SetIntensity(2);
+            View.SetDrama(true);
+            Sfx.Play("elim");
+            Sfx.Buzz(50, 60, 50, 60, 120);
         }
 
         // ---------------------------------------------------------------
@@ -261,7 +263,6 @@ namespace DreidelRoyale.Core
 
             View.SetCam("default");
             View.StartSpin(final, delta, duration, power, wobble);
-            View.AddWax();
 
             Sfx.Play("launch", power);
             Sfx.Play("whirl", power);

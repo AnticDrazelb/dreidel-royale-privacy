@@ -941,13 +941,41 @@ namespace DreidelRoyale.UI
         public void ShakeScreen(float power) { _shake = power; }
         float _shake;
 
+        /// <summary>
+        /// The slam. A short decaying jolt whose magnitude scales with the spin's power, on
+        /// top of whatever the wind-up is already doing.
+        /// </summary>
+        public void ImpactShake(float magnitudePx)
+        {
+            if (_impactRoutine != null) StopCoroutine(_impactRoutine);
+            _impactRoutine = StartCoroutine(ImpactShakeRoutine(magnitudePx));
+        }
+
+        Coroutine _impactRoutine;
+        float _impact;
+
+        IEnumerator ImpactShakeRoutine(float mag)
+        {
+            float t = 0f;
+            const float dur = 0.52f;
+            while (t < dur)
+            {
+                t += Time.deltaTime;
+                _impact = mag * (1f - t / dur);
+                yield return null;
+            }
+            _impact = 0f;
+            _impactRoutine = null;
+        }
+
         void LateUpdate()
         {
-            if (_shake > 0f && View != null && View.Cam != null)
+            float amount = _shake * 0.05f + _impact * 0.012f;
+            if (amount > 0f && View != null && View.Cam != null)
             {
                 var c = View.Cam.transform;
-                c.position += new Vector3((UnityEngine.Random.value - 0.5f) * _shake * 0.05f,
-                                          (UnityEngine.Random.value - 0.5f) * _shake * 0.05f, 0f);
+                c.position += new Vector3((UnityEngine.Random.value - 0.5f) * amount,
+                                          (UnityEngine.Random.value - 0.5f) * amount, 0f);
             }
         }
 

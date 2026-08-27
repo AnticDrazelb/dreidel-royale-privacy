@@ -149,25 +149,63 @@ namespace DreidelRoyale
             // says they do — the scrape's RPM, each wooden knock, and the slam that fires the
             // spin's consequences.
             _view.OnSpinAudio = (speed01, power) => Sfx.SetScrape(speed01, power);
-            _view.OnKnock = v => Sfx.Play("knock", v);
             _view.OnChargePulse = p => Sfx.Play("chargePulse", p);
+            _view.OnKnock = v =>
+            {
+                Sfx.Play("knock", v);
+                if (v > 0.4f) Sfx.Buzz(Mathf.RoundToInt(8 + v * 26));
+            };
+
+            // The impact moment: the body actually meets the surface, and the 3D layer knows
+            // when - with the fake-out it varies. Everything that sells the slam fires here,
+            // in sync with the loud knock.
             _view.OnImpact = power =>
             {
+                Sfx.StopScrape();
+                _view.AddWax();                  // every spin melts the candles a notch further
                 Sfx.Play("land", power);
+                Sfx.Buzz(Mathf.RoundToInt(30 + power * 60), 40, 20);
+                _ui.ImpactShake(3f + power * 9f);
                 _gc.FireImpact(power);
             };
 
-            _view.Gelt.OnClink = v => Clink("clinkWood", v);
-            _view.Gelt.OnCoinLand = (surface, v) => Clink(surface == "floor" ? "clinkFloor" : "clinkWood", v);
+            _view.Gelt.OnClink = v => Clink("clinkWood", v, true);
+            _view.Gelt.OnCoinLand = (surface, v) =>
+            {
+                Clink(surface == "floor" ? "clinkFloor" : "clinkWood", v, false);
+                if (surface == "floor") Sfx.Buzz(8);
+            };
+            // The Euler's-disk rattle: a run of ticks that accelerates as the coin flattens -
+            // the signature wrrrrRRRR. Tick times follow the same decay the visual uses.
+            _view.Gelt.OnEuler = dur => StartCoroutine(EulerRattle(dur));
         }
 
         // Coins land in cascades; without a floor on the interval a scatter reads as static.
-        float _lastClink;
-        void Clink(string fx, float v)
+        // Coin-on-coin and coin-on-surface get their own throttles, as in the source.
+        float _lastClink, _lastLand;
+
+        void Clink(string fx, float v, bool coinOnCoin)
         {
-            if (Time.time - _lastClink < 0.035f) return;
-            _lastClink = Time.time;
+            float gap = coinOnCoin ? 0.07f : 0.09f;
+            float last = coinOnCoin ? _lastClink : _lastLand;
+            if (Time.time - last < gap) return;
+            if (coinOnCoin) _lastClink = Time.time; else _lastLand = Time.time;
             Sfx.Play(fx, v);
+        }
+
+        System.Collections.IEnumerator EulerRattle(float dur)
+        {
+            const int n = 16;
+            float prev = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float u = i / (float)(n - 1);
+                float t = dur * (1f - Mathf.Pow(1f - u, 2.2f));   // ticks bunch up toward the end
+                float wait = t - prev;
+                prev = t;
+                if (wait > 0f) yield return new WaitForSeconds(wait);
+                Sfx.Play("clinkWood", 0.25f + u * 0.5f);
+            }
         }
 
         void OnApplicationPause(bool paused)
