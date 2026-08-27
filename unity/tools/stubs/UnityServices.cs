@@ -61,8 +61,28 @@ namespace Unity.Services.Relay
     }
 }
 
+namespace Unity.Collections
+{
+    /// Transport 2.0 moved these two out of Unity.Networking.Transport into here, so using
+    /// them needs its own directive. Declared in the real namespace for that reason.
+    public struct DataStreamReader
+    {
+        public int Length { get { return 0; } }
+        public ushort ReadUShort() { return 0; }
+        public byte ReadByte() { return 0; }
+    }
+
+    public struct DataStreamWriter
+    {
+        public bool WriteUShort(ushort v) { return false; }
+        public bool WriteByte(byte v) { return false; }
+    }
+}
+
 namespace Unity.Networking.Transport
 {
+    using Unity.Collections;
+
     public struct NetworkEndpoint
     {
         public static NetworkEndpoint AnyIpv4 { get { return default(NetworkEndpoint); } }
@@ -89,18 +109,6 @@ namespace Unity.Networking.Transport
         public enum Type { Empty, Data, Connect, Disconnect }
     }
 
-    public struct DataStreamReader
-    {
-        public int Length { get { return 0; } }
-        public ushort ReadUShort() { return 0; }
-        public byte ReadByte() { return 0; }
-    }
-
-    public struct DataStreamWriter
-    {
-        public bool WriteUShort(ushort v) { return false; }
-        public bool WriteByte(byte v) { return false; }
-    }
 
     public struct JobHandle
     {
