@@ -298,9 +298,12 @@ namespace DreidelRoyale.Net
                     // name alone is guessable, so the seat's token (minted at first join and
                     // kept client-side) must match too. No token, no rebind: an unknown
                     // claimant becomes an observer rather than stealing a held seat.
+                    // Compared as hashes, because the seat list is public to the whole table
+                    // and only the hash is ever stored on it.
+                    var presented = Player.HashToken(d.token);
                     var held = GC.G.Players.FirstOrDefault(p =>
                         p.Disconnected && !p.Forfeited && p.Name == wantName
-                        && !string.IsNullOrEmpty(p.Token) && d.token == p.Token);
+                        && !string.IsNullOrEmpty(p.TokenHash) && presented == p.TokenHash);
                     if (held != null)
                     {
                         held.Id = c.Id;
@@ -341,12 +344,15 @@ namespace DreidelRoyale.Net
                     }
 
                     var name = UniqueName(wantName);
-                    var token = Guid.NewGuid().ToString("N").Substring(0, 10);
+                    // The full GUID, not a 10-character slice of it: this is the one value
+                    // standing between a stranger and someone's held seat, and it costs
+                    // nothing to make it unguessable rather than merely awkward.
+                    var token = Guid.NewGuid().ToString("N");
                     Chat.AddNotice(name + " joined the table");
                     GC.G.Players.Add(new Player(c.Id, name, Consts.StartCoins)
                     {
                         Skin = Unlocks.ValidSkin(d.skin) ? d.skin : "wood",
-                        Token = token
+                        TokenHash = Player.HashToken(token)
                     });
                     c.Send(new NetMsg { type = MsgType.YouAre, id = c.Id, name = name, token = token }.ToJson());
                     Sfx.Play("coin");

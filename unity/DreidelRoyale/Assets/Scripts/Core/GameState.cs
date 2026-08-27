@@ -19,11 +19,54 @@ namespace DreidelRoyale.Core
         public string Skin = "";
 
         /// <summary>
-        /// Minted by the host at first join and kept client-side. A held seat is rebound by
-        /// name, and a name alone is guessable, so the token is what stops a stranger walking
-        /// into a dropped player's chair.
+        /// The VERIFIER for this seat, not the secret itself.
+        ///
+        /// A held seat is rebound by name, and a name alone is guessable, so a reconnecting
+        /// player must also present a token minted for them at first join. That token reaches
+        /// its owner once, privately, in YOU_ARE — and never appears here.
+        ///
+        /// It has to be this way round. The seat list is broadcast to the whole table on every
+        /// state update, so anything stored on a Player is public to every client; a plaintext
+        /// token here would hand every player the key to every other player's chair, which is
+        /// the exact theft it exists to prevent. But it cannot simply be left off the wire
+        /// either: when the host drops, the new host inherits its seat list from the last
+        /// state update it received, and still has to validate reconnects. A one-way hash
+        /// satisfies both — it survives migration, and it is useless to anyone listening.
         /// </summary>
-        public string Token = "";
+        public string TokenHash = "";
+
+        /// <summary>
+        /// A copy of this seat as it travels. Seats are copied rather than sent by reference
+        /// so that anything the wire form omits can never reach back into the live game state.
+        /// </summary>
+        public Player ForWire()
+        {
+            return new Player
+            {
+                Id = Id, Name = Name, Coins = Coins,
+                Eliminated = Eliminated, Cpu = Cpu,
+                Disconnected = Disconnected, Forfeited = Forfeited,
+                Skin = Skin, TokenHash = TokenHash
+            };
+        }
+
+        /// <summary>
+        /// Hash a presented token to compare against <see cref="TokenHash"/>. SHA-256 folded
+        /// to 16 hex characters: 64 bits of preimage resistance is far more than a value that
+        /// only has to survive one evening at a dreidel table needs, and it keeps the seat
+        /// list small enough to matter on a relay.
+        /// </summary>
+        public static string HashToken(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return "";
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(token));
+                var sb = new System.Text.StringBuilder(16);
+                for (int i = 0; i < 8; i++) sb.Append(bytes[i].ToString("x2"));
+                return sb.ToString();
+            }
+        }
 
         public Player() { }
         public Player(string id, string name, int coins, bool cpu = false)

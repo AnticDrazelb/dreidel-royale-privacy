@@ -20,7 +20,6 @@ using System.Text;
 using System.Threading.Tasks;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Relay;
-using Unity.Networking.Transport.Utilities;   // the pipeline stage parameter extensions
 using Unity.Services.Authentication;
 using Unity.Services.Core;
 using Unity.Services.Relay;
@@ -229,14 +228,19 @@ namespace DreidelRoyale.Net
             var settings = new NetworkSettings();
             settings.WithRelayParameters(ref data);
 
-            // A full table's STATE_UPDATE is comfortably over a single datagram, and every
-            // message the game sends has to arrive and arrive in order - a dropped turn
-            // change would desync the table - so the traffic goes down a fragmenting,
-            // reliable, sequenced pipeline rather than the default unreliable one.
-            settings.WithFragmentationStageParameters(payloadCapacity: 16 * 1024);
-            settings.WithReliableStageParameters(windowSize: 32);
-
             _driver = NetworkDriver.Create(settings);
+
+            // Every message the game sends has to arrive, and arrive in order: a dropped turn
+            // change desyncs the table. So the traffic goes down a fragmenting, reliable,
+            // sequenced pipeline rather than the default unreliable one.
+            //
+            // The stages keep their default parameters deliberately. The reliable window
+            // default is already 32, and the fragmentation buffer default is 4 KB, which
+            // NetProtocol keeps every message well inside - see the cap on the spin history
+            // it puts on the wire. Tuning them means reaching for extension methods in a
+            // sub-namespace that has moved between Transport versions, and buying a
+            // version-fragile dependency for a value we were going to pick anyway is a bad
+            // trade.
             _pipeline = _driver.CreatePipeline(typeof(FragmentationPipelineStage),
                                                typeof(ReliableSequencedPipelineStage));
 

@@ -91,17 +91,36 @@ namespace DreidelRoyale.Net
         public List<int> gimelCounts = new List<int>();
         public List<string> history = new List<string>();
 
+        /// <summary>
+        /// The spin log is the one field with no natural ceiling: it grows by one entry per
+        /// spin, forever, and the whole state goes out on every update. A long eight-player
+        /// game would eventually push a single STATE_UPDATE past the transport's fragmentation
+        /// buffer, at which point the send fails and the table silently stops agreeing.
+        ///
+        /// Nothing reads more than the tail of it - the shared result renders the last forty -
+        /// so that is what travels.
+        /// </summary>
+        public const int HistoryOnWire = 40;
+
         public static NetState From(GameState g)
         {
             var s = new NetState
             {
-                players = g.Players,
                 pot = g.Pot, turnIndex = g.TurnIndex, round = g.Round,
                 ante = g.Ante, baseAnte = g.BaseAnte,
                 status = g.Status.ToString(), rules = g.Rules, env = g.Env,
                 spins = g.Stats.Spins, biggestSweep = g.Stats.BiggestSweep,
-                sweepBy = g.Stats.SweepBy, history = g.Stats.History
+                sweepBy = g.Stats.SweepBy
             };
+
+            // Seats travel as copies, not as the host's own Player objects, so that trimming
+            // a secret off the wire cannot reach back into the live game state.
+            foreach (var p in g.Players) s.players.Add(p.ForWire());
+
+            var h = g.Stats.History;
+            int from = Mathf.Max(0, h.Count - HistoryOnWire);
+            for (int i = from; i < h.Count; i++) s.history.Add(h[i]);
+
             foreach (var kv in g.Stats.Gimels) { s.gimelIds.Add(kv.Key); s.gimelCounts.Add(kv.Value); }
             return s;
         }
