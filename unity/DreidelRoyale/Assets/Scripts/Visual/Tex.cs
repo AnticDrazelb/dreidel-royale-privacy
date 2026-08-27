@@ -415,6 +415,94 @@ namespace DreidelRoyale.Visual
             return cv.ToTexture(false, true, "flame");
         }
 
+        /// <summary>
+        /// The oil's thickness ramp: pale where the film is thin, saturated and near-black
+        /// where it is deep. The fluid writes a normalised depth into the surface mesh's u,
+        /// so sampling this is Beer–Lambert absorption done by the texture unit — no custom
+        /// shader, and it works on the stock Standard material every other piece uses.
+        /// </summary>
+        public static Texture2D OilDepth()
+        {
+            if (_oilDepth != null) return _oilDepth;
+            const int W = 64;
+            var cv = new Canvas2D(W, 4);
+            cv.FillRectShaded(0, 0, W, 4, Canvas2D.LinearGradient(0, 0, W, 0, new[]
+            {
+                new Stop(0f,    Hex.To("#d8a154")),   // a thin film, lit right through
+                new Stop(0.35f, Hex.To("#a4661f")),
+                new Stop(0.7f,  Hex.To("#6b3c0b")),
+                new Stop(1f,    Hex.To("#3a1d02"))    // deep oil, almost none of the light returns
+            }));
+            _oilDepth = cv.ToTexture(false, false, "oilDepth");
+            _oilDepth.wrapMode = TextureWrapMode.Clamp;
+            return _oilDepth;
+        }
+
+        static Texture2D _oilDepth;
+
+        /// <summary>
+        /// The table's environment map — the thing every metal, gem and pane of glass in the
+        /// scene is actually reflecting.
+        ///
+        /// A bright radial top, a flat floor, and four side faces carrying a vertical gradient
+        /// with a bright horizontal strip across them: a studio light-bar. That strip is the
+        /// whole point. A metal with nothing to reflect renders as a flat dark colour no matter
+        /// how good its shading is, and the moving glint of a light-bar sliding across a
+        /// spinning gold body is most of what reads as "metal" to the eye.
+        ///
+        /// Cached per table, because six 128px faces is not something to rebuild on a spin.
+        /// </summary>
+        public static Cubemap EnvCube(EnvDef env)
+        {
+            Cubemap cached;
+            if (_envCubes.TryGetValue(env.Name, out cached) && cached != null) return cached;
+
+            const int S = 128;
+            var cube = new Cubemap(S, TextureFormat.RGBA32, true) { name = "envCube-" + env.Name };
+            cube.filterMode = FilterMode.Bilinear;
+
+            var top = new Canvas2D(S, S);
+            top.FillRectShaded(0, 0, S, S, Canvas2D.RadialGradient(S / 2f, S / 2f, 4f, S / 2f, S / 2f, S * 0.7f,
+                new[] { new Stop(0f, env.CubeHi), new Stop(1f, env.CubeMid) }));
+
+            var bottom = new Canvas2D(S, S);
+            bottom.FillRect(0, 0, S, S, env.CubeLo);
+
+            var side = new Canvas2D(S, S);
+            side.FillRectShaded(0, 0, S, S, Canvas2D.LinearGradient(0, 0, 0, S, new[]
+            {
+                new Stop(0f,    env.CubeMid),
+                new Stop(0.42f, env.CubeHi),
+                new Stop(0.52f, env.CubeMid),
+                new Stop(1f,    env.CubeLo)
+            }));
+            side.FillRect(0, S * 0.39f, S, S * 0.08f, new Color(1f, 1f, 1f, 0.30f));
+
+            SetFace(cube, CubemapFace.PositiveX, side);
+            SetFace(cube, CubemapFace.NegativeX, side);
+            SetFace(cube, CubemapFace.PositiveZ, side);
+            SetFace(cube, CubemapFace.NegativeZ, side);
+            SetFace(cube, CubemapFace.PositiveY, top);
+            SetFace(cube, CubemapFace.NegativeY, bottom);
+            cube.Apply(true);
+
+            _envCubes[env.Name] = cube;
+            return cube;
+        }
+
+        static readonly Dictionary<string, Cubemap> _envCubes = new Dictionary<string, Cubemap>();
+
+        static void SetFace(Cubemap cube, CubemapFace face, Canvas2D cv)
+        {
+            // Canvas2D is Y-down and a cube face is read Y-up, so the rows go back the way
+            // ToTexture flips them - done here rather than allocating a Texture2D per face.
+            var px = new Color[cv.W * cv.H];
+            for (int y = 0; y < cv.H; y++)
+                for (int x = 0; x < cv.W; x++)
+                    px[(cv.H - 1 - y) * cv.W + x] = cv.Get(x, y);
+            cube.SetPixels(px, face);
+        }
+
         /// <summary>Sky dome: the table's vertical gradient plus its nebula blobs.</summary>
         public static Texture2D Sky(EnvDef env)
         {

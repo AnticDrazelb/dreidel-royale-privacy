@@ -24,26 +24,68 @@ namespace DreidelRoyale.Visual
     /// </summary>
     public class OilFluid
     {
-        public const int N = 14;                 // cells per side
+        public const int N = 20;                 // cells per side
         const float Half = 0.52f;                // vessel interior half-width
         const float BaseY = -0.67f;              // vessel floor, in spinner-local space
         const float RestY = -0.01f;              // surface at rest
 
         // Tuned so a spin reads as thick oil rather than water: waves travel, but slowly, and
         // they die out over about a second.
-        const float WaveSpeed = 26f;
+        const float WaveSpeed = 34f;
         const float Restore = 9f;
         const float Damping = 3.2f;
         const float MaxDeviation = 0.16f;        // how far a wave may climb before it is capped
         const float MaxSlope = 0.28f;            // clamped so the rim can never reach the glass
 
+        /// <summary>
+        /// The integrator is explicit, so its step is bounded by the wave speed: too long a
+        /// step and the surface does not slosh, it detonates. Rather than slow the waves to
+        /// suit the frame rate, the sim takes its own fixed steps and the frame takes as many
+        /// as it needs. That also makes the oil behave identically at 30fps and 120fps, which
+        /// a frame-rate-coupled version does not.
+        /// </summary>
+        const float FixedStep = 1f / 120f;
+        const int MaxSubSteps = 4;
+
+        /// <summary>
+        /// Oil wets glass, so its edge climbs the wall instead of meeting it flat. It is a
+        /// couple of millimetres on a real vessel and it is one of the few cues that says
+        /// "liquid in a container" rather than "surface in a box".
+        /// </summary>
+        const float Meniscus = 0.022f;
+
+        /// <summary>Depth at which the oil reads fully saturated, for the thickness shading.</summary>
+        const float FullDepth = 0.5f;
+
         readonly float[,] _h = new float[N + 1, N + 1];
         readonly float[,] _v = new float[N + 1, N + 1];
         readonly float[,] _target = new float[N + 1, N + 1];
 
+        /// <summary>
+        /// How strongly each cell feels the wall it is touching — 1 in the corner, falling to
+        /// 0 a couple of cells in. Fixed for the life of the vessel, so it is built once.
+        /// </summary>
+        static readonly float[,] _wet = BuildWetting();
+
+        static float[,] BuildWetting()
+        {
+            var w = new float[N + 1, N + 1];
+            for (int i = 0; i <= N; i++)
+                for (int j = 0; j <= N; j++)
+                {
+                    float dx = Mathf.Min(j, N - j) / (float)N;
+                    float dz = Mathf.Min(i, N - i) / (float)N;
+                    float d = Mathf.Min(dx, dz);                  // distance to the nearest wall
+                    w[i, j] = Mathf.Clamp01(1f - d / 0.14f);
+                    w[i, j] *= w[i, j];                           // tight to the glass, not a dome
+                }
+            return w;
+        }
+
         Mesh _mesh;
         Vector3[] _verts;
         Vector3[] _norms;
+        Vector2[] _uvs;
         MeshRenderer _renderer;
         Transform _t;
 
@@ -83,7 +125,8 @@ namespace DreidelRoyale.Visual
             int floor = 4;
             _verts = new Vector3[grid + skirt + floor];
             _norms = new Vector3[_verts.Length];
-            var uvs = new Vector2[_verts.Length];
+            _uvs = new Vector2[_verts.Length];
+            var uvs = _uvs;
 
             _skirtStart = grid;
             _floorStart = grid + skirt;
@@ -98,9 +141,13 @@ namespace DreidelRoyale.Visual
                     surfaceTris[t++] = a; surfaceTris[t++] = c; surfaceTris[t++] = b;
                     surfaceTris[t++] = b; surfaceTris[t++] = c; surfaceTris[t++] = d;
                 }
+            // The surface's UV is not a texture coordinate in the usual sense: u carries how
+            // deep the oil is under that vertex, and the material's albedo is a one-dimensional
+            // ramp. Thin oil over the floor reads pale and the deep middle reads saturated,
+            // which is what a real absorbing liquid does and what a single flat colour cannot.
             for (int i = 0; i <= N; i++)
                 for (int j = 0; j <= N; j++)
-                    uvs[i * (N + 1) + j] = new Vector2(j / (float)N, i / (float)N);
+                    uvs[i * (N + 1) + j] = new Vector2(0f, 0.5f);
 
             // ---- four skirts, surface edge down to the floor ----
             var sideTris = new int[4 * N * 6];
@@ -168,7 +215,11 @@ namespace DreidelRoyale.Visual
         public void Step(float dt, Transform vessel, float spinRadiansPerSec)
         {
             if (_t == null || !_t.gameObject.activeSelf || dt <= 0f) return;
-            dt = Mathf.Min(dt, 1f / 45f);          // a long frame must not blow up the integrator
+            // The sub-step budget covers a 30fps frame exactly (4 x 1/120). Beyond that the
+            // sim deliberately runs a little slow rather than skipping ahead, which is the
+            // safer failure: oil that lags for one frame is invisible, oil that teleports
+            // is not.
+            dt = Mathf.Min(dt, 1f / 30f);
 
             // ---- what the fluid actually feels ----
             var worldPos = vessel.position;
@@ -211,13 +262,27 @@ namespace DreidelRoyale.Visual
                     float z = (i / (float)N - 0.5f) * 2f * Half;
                     float r2 = x * x + z * z;
                     float tgt = RestY + slopeX * x + slopeZ * z
-                              + parabola * (r2 - Half * Half * 0.5f) * 0.12f;
+                              + parabola * (r2 - Half * Half * 0.5f) * 0.12f
+                              + Meniscus * _wet[i, j];
                     _target[i, j] = tgt;
                     meanTarget += tgt;
                 }
             meanTarget /= (N + 1) * (N + 1);
 
-            // ---- shallow water ----
+            // ---- shallow water, in fixed sub-steps ----
+            _carry += dt;
+            int steps = Mathf.Min(MaxSubSteps, Mathf.FloorToInt(_carry / FixedStep));
+            _carry -= steps * FixedStep;
+            if (steps >= MaxSubSteps) _carry = 0f;      // a stall must not build up a debt
+
+            for (int step = 0; step < steps; step++) Integrate(FixedStep, meanTarget);
+            if (steps > 0) WriteVertices();
+        }
+
+        float _carry;
+
+        void Integrate(float h_, float meanTarget)
+        {
             for (int i = 0; i <= N; i++)
                 for (int j = 0; j <= N; j++)
                 {
@@ -225,14 +290,14 @@ namespace DreidelRoyale.Visual
                     float lap = Sample(i - 1, j) + Sample(i + 1, j)
                               + Sample(i, j - 1) + Sample(i, j + 1) - 4f * c;
                     float a = lap * WaveSpeed - (c - _target[i, j]) * Restore;
-                    _v[i, j] = (_v[i, j] + a * dt) * Mathf.Exp(-Damping * dt);
+                    _v[i, j] = (_v[i, j] + a * h_) * Mathf.Exp(-Damping * h_);
                 }
 
             float mean = 0f;
             for (int i = 0; i <= N; i++)
                 for (int j = 0; j <= N; j++)
                 {
-                    _h[i, j] += _v[i, j] * dt;
+                    _h[i, j] += _v[i, j] * h_;
                     mean += _h[i, j];
                 }
             mean /= (N + 1) * (N + 1);
@@ -247,8 +312,6 @@ namespace DreidelRoyale.Visual
                     // never let a wave poke through the glass, or dig below the floor
                     _h[i, j] = Mathf.Clamp(h, BaseY + 0.03f, RestY + MaxDeviation);
                 }
-
-            WriteVertices();
         }
 
         float Sample(int i, int j)
@@ -292,6 +355,11 @@ namespace DreidelRoyale.Visual
                     float dhz = Sample(i + 1, j) - Sample(i - 1, j);
                     float step = 2f * Half / N * 2f;
                     _norms[i * (N + 1) + j] = new Vector3(-dhx, step, -dhz).normalized;
+
+                    // How far the light has to travel through the oil to get back out. A
+                    // trough is thin and pale; the bulk is deep and rich.
+                    float depth = (_h[i, j] - BaseY) / FullDepth;
+                    _uvs[i * (N + 1) + j] = new Vector2(Mathf.Clamp01(depth), 0.5f);
                 }
 
             // skirts: each edge follows the surface down to the floor
@@ -321,6 +389,7 @@ namespace DreidelRoyale.Visual
 
             _mesh.vertices = _verts;
             _mesh.normals = _norms;
+            _mesh.uv = _uvs;                 // the depth channel moves with the waves
         }
 
         /// <summary>Where the glint should ride: the highest point of the surface.</summary>

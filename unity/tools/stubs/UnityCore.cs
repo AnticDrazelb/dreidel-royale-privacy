@@ -262,15 +262,21 @@ namespace UnityEngine
         public static ShadowQuality shadows; public static ShadowResolution shadowResolution;
         public static float shadowDistance;
         public static int antiAliasing, shadowCascades, vSyncCount;
+        public static ShadowProjection shadowProjection;
     }
     public enum ShadowQuality { Disable, HardOnly, All }
     public enum ShadowResolution { Low, Medium, High, VeryHigh }
     public static class RenderSettings {
         public static bool fog; public static FogMode fogMode; public static Color fogColor;
         public static float fogStartDistance, fogEndDistance, fogDensity;
-        public static Color ambientLight;
+        public static Color ambientLight, ambientSkyColor, ambientEquatorColor, ambientGroundColor;
+        public static float ambientIntensity, reflectionIntensity;
+        public static int reflectionBounces;
         public static Rendering.AmbientMode ambientMode;
+        public static Rendering.DefaultReflectionMode defaultReflectionMode;
+        public static Cubemap customReflection;
     }
+    public enum ShadowProjection { CloseFit, StableFit }
     public enum FogMode { Linear=1, Exponential=2, ExponentialSquared=3 }
     public enum ColorSpace { Gamma, Linear }
     public class AndroidJavaObject : IDisposable {

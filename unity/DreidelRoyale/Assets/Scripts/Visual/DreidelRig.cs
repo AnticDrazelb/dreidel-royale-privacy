@@ -183,7 +183,10 @@ namespace DreidelRoyale.Visual
         void BuildOilFill()
         {
             var sideMat = MatUtil.UnlitTex(Tex.OilSide(), Color.white);
-            var surfMat = MatUtil.Pbr(Hex.FromInt(0x8a5410), 0.15f, 0.18f, Hex.FromInt(0x2a1804), 0.35f);
+            // White albedo, because the colour comes from the depth ramp the sim writes into
+            // the surface's u - a flat tint here would multiply the thickness away again.
+            var surfMat = MatUtil.Pbr(Color.white, 0.15f, 0.18f, Hex.FromInt(0x2a1804), 0.35f);
+            surfMat.mainTexture = Tex.OilDepth();
             var botMat = MatUtil.UnlitColor(Hex.FromInt(0x050300));
 
             // Lit, unlike the sides: a moving surface only reads as liquid if the light rolls

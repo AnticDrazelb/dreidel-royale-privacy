@@ -5,6 +5,7 @@ namespace UnityEngine.Rendering
 {
     public enum ShadowCastingMode { Off, On, TwoSided, ShadowsOnly }
     public enum AmbientMode { Skybox=0, Trilight=1, Flat=3, Custom=4 }
+    public enum DefaultReflectionMode { Skybox, Custom }
     public enum BlendMode { Zero, One, DstColor, SrcColor, OneMinusDstColor, SrcAlpha,
                             OneMinusSrcColor, DstAlpha, OneMinusDstAlpha, SrcAlphaSaturate, OneMinusSrcAlpha }
     public enum RenderQueue { Background=1000, Geometry=2000, AlphaTest=2450, Transparent=3000, Overlay=4000 }
@@ -14,6 +15,12 @@ namespace UnityEngine.Rendering
 
 namespace UnityEngine
 {
+    public enum CubemapFace { Unknown=-1, PositiveX, NegativeX, PositiveY, NegativeY, PositiveZ, NegativeZ }
+    public class Cubemap : Texture {
+        public Cubemap(int size, TextureFormat fmt, bool mips){}
+        public void SetPixels(Color[] px, CubemapFace face){}
+        public void Apply(bool mips){}
+    }
     public class Texture : Object {
         public FilterMode filterMode; public TextureWrapMode wrapMode; public int anisoLevel;
         public int width, height;
@@ -101,7 +108,7 @@ namespace UnityEngine
     public enum CameraClearFlags { Skybox=1, Color=2, SolidColor=2, Depth=3, Nothing=4 }
     public class Light : Behaviour {
         public LightType type; public Color color; public float intensity, range, spotAngle;
-        public LightShadows shadows; public float shadowStrength, shadowBias, shadowNormalBias;
+        public LightShadows shadows; public float shadowStrength, shadowBias, shadowNormalBias, shadowNearPlane;
     }
     public enum LightType { Spot, Directional, Point, Area }
     public enum LightShadows { None, Hard, Soft }

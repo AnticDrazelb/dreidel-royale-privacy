@@ -84,7 +84,15 @@ namespace DreidelRoyale.Visual
             KeyLight.transform.rotation = Quaternion.LookRotation(-KeyLight.transform.localPosition.normalized);
             KeyLight.shadows = LightShadows.Soft;
             KeyLight.shadowStrength = 0.75f;
-            KeyLight.shadowBias = 0.02f;
+            // The whole scene is about four units across. Unity's default 150-unit shadow
+            // distance spends the entire cascade on empty space, which is why an untuned
+            // mobile build gets a blocky, crawling shadow under the dreidel; pulling the far
+            // plane in to the table itself is the same texels over a fortieth of the area.
+            KeyLight.shadowBias = 0.008f;
+            KeyLight.shadowNormalBias = 0.25f;
+            KeyLight.shadowNearPlane = 0.15f;
+            QualitySettings.shadowDistance = 22f;
+            QualitySettings.shadowProjection = ShadowProjection.CloseFit;
 
             RimLight = MkLight("rim", LightType.Directional, Hex.FromInt(0x4f7cff), 0.7f);
             RimLight.transform.localPosition = new Vector3(-4, 3, -5);
@@ -400,9 +408,9 @@ namespace DreidelRoyale.Visual
             RenderSettings.fogEndDistance = env.Room ? 120f : 26f;
 
             GroundMat.mainTexture = Tex.Ground(env);
-            RenderSettings.ambientLight = env.Ambient;
             KeyLight.color = env.Key;
             EnvRim = env.Rim;
+            ApplyEnvironmentLighting(env);
 
             foreach (var g in CandleGroups) g.gameObject.SetActive(env.Candles);
 
@@ -421,6 +429,40 @@ namespace DreidelRoyale.Visual
             if (StarField != null) StarField.gameObject.SetActive(env.Stars);
 
             EnvKits.Apply(this, env);
+        }
+
+        /// <summary>
+        /// Image-based lighting from the table's own environment map.
+        ///
+        /// This is the half of the original's look that a straight port of the light objects
+        /// misses. three.js had `scene.environment = cube`, which feeds every standard
+        /// material's reflection AND its ambient term; Unity splits those into two settings,
+        /// and without them a metallic surface has literally nothing to reflect, so gold,
+        /// gems and glass render as flat dark plastic no matter how many lights point at them.
+        ///
+        /// Ambient becomes three-band rather than flat for the same reason: a single ambient
+        /// colour lights the underside of the dreidel exactly as brightly as its top, which
+        /// removes the shading that tells the eye where the floor is.
+        /// </summary>
+        void ApplyEnvironmentLighting(EnvDef env)
+        {
+            var cube = Tex.EnvCube(env);
+
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+            RenderSettings.customReflection = cube;
+            // three.js set envMapIntensity per material (1.2 on brass up to 2.2 on the gem);
+            // Unity's Standard shader has no per-material equivalent and the global is a
+            // 0..1 slider, so the metals get the full weight and the flat 2D rooms - where a
+            // reflecting dreidel would fight the hand-drawn backdrop - get most of it taken
+            // back off.
+            RenderSettings.reflectionIntensity = env.Room ? 0.55f : 1f;
+            RenderSettings.reflectionBounces = 1;
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = Color.Lerp(env.Ambient, env.CubeHi, 0.55f);
+            RenderSettings.ambientEquatorColor = env.Ambient;
+            RenderSettings.ambientGroundColor = Color.Lerp(env.Ambient, env.CubeLo, 0.7f);
+            RenderSettings.ambientIntensity = 1f;
         }
 
         public void SetPotCoinsVisible(int n)
