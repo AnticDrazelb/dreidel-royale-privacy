@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -303,6 +304,64 @@ namespace DreidelRoyale.UI
         {
             for (int i = t.childCount - 1; i >= 0; i--) UnityEngine.Object.Destroy(t.GetChild(i).gameObject);
         }
+    }
+
+    /// <summary>
+    /// A paged setup screen. The web build splits setup across two pages with step dots rather
+    /// than one long scroll, so the first decision is made before the second is even visible -
+    /// which is what stops a phone-sized screen turning into a settings form.
+    /// </summary>
+    public class Pager : MonoBehaviour
+    {
+        readonly List<GameObject> _pages = new List<GameObject>();
+        readonly List<Image> _dots = new List<Image>();
+        RectTransform _dotRow;
+        int _page;
+
+        public int Page { get { return _page; } }
+
+        public void Init(Transform dotParent)
+        {
+            var row = UIKit.Node("step-dots", dotParent);
+            _dotRow = UIKit.Rect(row);
+            _dotRow.sizeDelta = new Vector2(80, 14);
+            var h = row.AddComponent<HorizontalLayoutGroup>();
+            h.spacing = 7f; h.childAlignment = TextAnchor.MiddleCenter;
+            h.childForceExpandWidth = false; h.childControlWidth = false;
+            h.childForceExpandHeight = false; h.childControlHeight = false;
+        }
+
+        public GameObject AddPage(Transform parent)
+        {
+            var go = UIKit.Node("page" + _pages.Count, parent);
+            var v = go.AddComponent<VerticalLayoutGroup>();
+            v.spacing = 8f; v.childAlignment = TextAnchor.UpperCenter;
+            v.childForceExpandWidth = false; v.childForceExpandHeight = false;
+            v.childControlWidth = false; v.childControlHeight = false;
+            go.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            _pages.Add(go);
+
+            var dot = UIKit.Node("dot", _dotRow);
+            UIKit.Rect(dot).sizeDelta = new Vector2(8, 8);
+            var img = dot.AddComponent<Image>();
+            img.sprite = Theme.Circle();
+            img.raycastTarget = false;
+            _dots.Add(img);
+
+            Show(0);
+            return go;
+        }
+
+        public void Show(int index)
+        {
+            _page = Mathf.Clamp(index, 0, Mathf.Max(0, _pages.Count - 1));
+            for (int i = 0; i < _pages.Count; i++) _pages[i].SetActive(i == _page);
+            for (int i = 0; i < _dots.Count; i++)
+                _dots[i].color = i == _page ? Theme.Gold : Theme.Surface3;
+        }
+
+        public void Next() { Show(_page + 1); }
+        public void Back() { Show(_page - 1); }
     }
 
     /// <summary>A steady rotation, for the waiting spinners.</summary>

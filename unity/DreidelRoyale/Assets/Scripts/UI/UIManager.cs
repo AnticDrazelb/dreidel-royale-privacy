@@ -26,6 +26,7 @@ namespace DreidelRoyale.UI
         public Hud Hud;
         public FxLayer Fx;
         public EmberLayer Embers;
+        public EnvFrameLayer Frame;
 
         readonly Dictionary<string, RectTransform> _screens = new Dictionary<string, RectTransform>();
 
@@ -48,6 +49,7 @@ namespace DreidelRoyale.UI
         readonly InputField[] _customFaces = new InputField[4];
         Button _resumeBtn;
         Text _resumeLabel;
+        Pager _cpuPager, _localPager;
 
         readonly Queue<KeyValuePair<string, bool>> _toastQ = new Queue<KeyValuePair<string, bool>>();
         bool _toastShowing;
@@ -75,6 +77,7 @@ namespace DreidelRoyale.UI
             BuildBackdrop();
 
             Embers = MakeGraphic<EmberLayer>("embers");
+            Frame = MakeGraphic<EnvFrameLayer>("env-frame");
             Fx = MakeGraphic<FxLayer>("fx");
 
             BuildScreen("landing", BuildLanding);
@@ -206,31 +209,40 @@ namespace DreidelRoyale.UI
             var tag = UIKit.Label(c, "Play against the house - everyone starts with 10 gelt", 14, Theme.Sub);
             UIKit.SetSize(tag, 340, 34);
 
-            _cpuName = UIKit.Input(c, "YOUR NAME", 10);
+            var pager = c.gameObject.AddComponent<Pager>();
+            pager.Init(c);
+            _cpuPager = pager;
+
+            // page 1: the game
+            var p1 = pager.AddPage(c).transform;
+            _cpuName = UIKit.Input(p1, "YOUR NAME", 10);
             _cpuName.text = "You";
+            UIKit.SectionLabel(p1, "Opponents");
+            _cpuCountPicker = UIKit.Row(p1, 8f, 46f).transform;
+            UIKit.SectionLabel(p1, "Difficulty");
+            _cpuDiffPicker = UIKit.Row(p1, 8f, 46f).transform;
+            UIKit.SectionLabel(p1, "Game style");
+            _rulesPickerCpu = UIKit.Row(p1, 8f, 46f).transform;
+            UIKit.SectionLabel(p1, "Starting ante");
+            _antePickerCpu = UIKit.Row(p1, 8f, 46f).transform;
+            UIKit.Spacer(p1, 6f);
+            UIKit.Btn(p1, "Next", UIKit.BtnKind.Primary, () => { Sfx.Play("tick"); pager.Next(); });
+            UIKit.Btn(p1, "Back", UIKit.BtnKind.Ghost, () => Show("landing"));
 
-            UIKit.SectionLabel(c, "Opponents");
-            _cpuCountPicker = UIKit.Row(c, 8f, 46f).transform;
-            UIKit.SectionLabel(c, "Difficulty");
-            _cpuDiffPicker = UIKit.Row(c, 8f, 46f).transform;
-            UIKit.SectionLabel(c, "Game style");
-            _rulesPickerCpu = UIKit.Row(c, 8f, 46f).transform;
-            UIKit.SectionLabel(c, "Starting ante");
-            _antePickerCpu = UIKit.Row(c, 8f, 46f).transform;
-
-            UIKit.SectionLabel(c, "Choose your table");
-            _envPickerCpu = UIKit.Grid(c, new Vector2(96, 92)).transform;
-            UIKit.SectionLabel(c, "Your dreidel - earned through play");
-            _skinPickerCpu = UIKit.Grid(c, new Vector2(96, 92)).transform;
-
-            UIKit.Spacer(c, 6f);
-            UIKit.Btn(c, "Start", UIKit.BtnKind.Primary, () =>
+            // page 2: the look, and the start
+            var p2 = pager.AddPage(c).transform;
+            UIKit.SectionLabel(p2, "Choose your table");
+            _envPickerCpu = UIKit.Grid(p2, new Vector2(96, 92)).transform;
+            UIKit.SectionLabel(p2, "Your dreidel - earned through play");
+            _skinPickerCpu = UIKit.Grid(p2, new Vector2(96, 92)).transform;
+            UIKit.Spacer(p2, 6f);
+            UIKit.Btn(p2, "Start", UIKit.BtnKind.Primary, () =>
             {
                 Sfx.Play("tick");
                 if (CheckTestUnlock(_cpuName.text)) { _cpuName.text = "You"; RefreshCpuSetup(); return; }
                 GC.StartCpuGame(_cpuName.text.Trim());
             });
-            UIKit.Btn(c, "Back", UIKit.BtnKind.Ghost, () => Show("landing"));
+            UIKit.Btn(p2, "Back", UIKit.BtnKind.Ghost, () => { Sfx.Play("tick"); pager.Back(); });
         }
 
         void BuildLocalSetup(Transform c)
@@ -240,7 +252,12 @@ namespace DreidelRoyale.UI
             var tag = UIKit.Label(c, "Everyone starts with 10 gelt", 14, Theme.Sub);
             UIKit.SetSize(tag, 340, 24);
 
-            var listGo = UIKit.Node("local-list", c);
+            var localPager = c.gameObject.AddComponent<Pager>();
+            localPager.Init(c);
+            _localPager = localPager;
+            var p1 = localPager.AddPage(c).transform;
+
+            var listGo = UIKit.Node("local-list", p1);
             UIKit.Rect(listGo).sizeDelta = new Vector2(320, 40);
             var limg = listGo.AddComponent<Image>();
             limg.sprite = Theme.Rounded(Theme.RMd); limg.type = Image.Type.Sliced;
@@ -252,26 +269,34 @@ namespace DreidelRoyale.UI
             listGo.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             _localList = listGo.transform;
 
-            _localName = UIKit.Input(c, "PLAYER NAME", 10);
-            UIKit.Btn(c, "+ Add Player", UIKit.BtnKind.Ghost, AddLocalPlayer, 180f, 44f, 16);
 
-            UIKit.SectionLabel(c, "Game style");
-            _rulesPickerLocal = UIKit.Row(c, 8f, 46f).transform;
-            UIKit.SectionLabel(c, "Starting ante");
-            _antePickerLocal = UIKit.Row(c, 8f, 46f).transform;
-            UIKit.SectionLabel(c, "Choose your table");
-            _envPickerLocal = UIKit.Grid(c, new Vector2(96, 92)).transform;
-            UIKit.SectionLabel(c, "Table's dreidel - earned through play");
-            _skinPickerLocal = UIKit.Grid(c, new Vector2(96, 92)).transform;
-
-            UIKit.Spacer(c, 6f);
-            UIKit.Btn(c, "Start", UIKit.BtnKind.Primary, () =>
+            _localName = UIKit.Input(p1, "PLAYER NAME", 10);
+            UIKit.Btn(p1, "+ Add Player", UIKit.BtnKind.Ghost, AddLocalPlayer, 180f, 44f, 16);
+            UIKit.SectionLabel(p1, "Game style");
+            _rulesPickerLocal = UIKit.Row(p1, 8f, 46f).transform;
+            UIKit.SectionLabel(p1, "Starting ante");
+            _antePickerLocal = UIKit.Row(p1, 8f, 46f).transform;
+            UIKit.Spacer(p1, 6f);
+            UIKit.Btn(p1, "Next", UIKit.BtnKind.Primary, () =>
             {
                 if (GC.G.Players.Count < 2) { Toast("Add at least 2 players", true); return; }
                 Sfx.Play("tick");
+                localPager.Next();
+            });
+            UIKit.Btn(p1, "Back", UIKit.BtnKind.Ghost, () => Show("landing"));
+
+            var p2 = localPager.AddPage(c).transform;
+            UIKit.SectionLabel(p2, "Choose your table");
+            _envPickerLocal = UIKit.Grid(p2, new Vector2(96, 92)).transform;
+            UIKit.SectionLabel(p2, "Table's dreidel - earned through play");
+            _skinPickerLocal = UIKit.Grid(p2, new Vector2(96, 92)).transform;
+            UIKit.Spacer(p2, 6f);
+            UIKit.Btn(p2, "Start", UIKit.BtnKind.Primary, () =>
+            {
+                Sfx.Play("tick");
                 GC.StartLocalGame();
             });
-            UIKit.Btn(c, "Back", UIKit.BtnKind.Ghost, () => Show("landing"));
+            UIKit.Btn(p2, "Back", UIKit.BtnKind.Ghost, () => { Sfx.Play("tick"); localPager.Back(); });
         }
 
         void BuildCustom(Transform c)
@@ -713,8 +738,8 @@ namespace DreidelRoyale.UI
             Hud.Show(false);
             Current = id;
 
-            if (id == "cpu") RefreshCpuSetup();
-            else if (id == "local") RefreshLocalSetup();
+            if (id == "cpu") { if (_cpuPager != null) _cpuPager.Show(0); RefreshCpuSetup(); }
+            else if (id == "local") { if (_localPager != null) _localPager.Show(0); RefreshLocalSetup(); }
             else if (id == "custom") RefreshCustom();
             else if (id == "records") RefreshRecords();
             else if (id == "change") RefreshChange();
@@ -1033,6 +1058,7 @@ namespace DreidelRoyale.UI
         public void ApplyEnvBackdrop(EnvDef env)
         {
             if (Embers != null) Embers.SetEnv(env);
+            if (Frame != null) Frame.SetEnv(env);
         }
 
         public void SetDim(float a) { _dim.color = new Color(0, 0, 0, a); }
