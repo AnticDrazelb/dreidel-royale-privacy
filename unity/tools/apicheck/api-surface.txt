@@ -1,0 +1,92 @@
+# The package API surface this port depends on.
+#
+# Every line is a claim about a Unity package: that this member exists, on this
+# type, in this namespace, at the version the manifest pins. verify.py checks each
+# one against the package's real source, fetched from Unity's public mirror.
+#
+# It exists because four separate build failures in one evening had the same cause:
+# code written against a remembered API, type-checked against a stub written from
+# the same memory, so the stub agreed with the mistake. A stub cannot catch an
+# author being confidently wrong; only the real source can. Anything added to the
+# port that touches a package goes on this list.
+#
+#   format:  package | namespace | Type | member
+#            member may be `.ctor` for a constructor, or omitted to check the type only
+
+# ---- Unity Transport -------------------------------------------------------
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Create
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Bind
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Listen
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Connect
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Accept
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | ScheduleUpdate
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | PopEventForConnection
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | BeginSend
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | EndSend
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | CreatePipeline
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Dispose
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Bound
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | IsCreated
+com.unity.transport | Unity.Networking.Transport | NetworkEndpoint | AnyIpv4
+com.unity.transport | Unity.Networking.Transport | NetworkSettings |
+com.unity.transport | Unity.Networking.Transport | NetworkConnection | IsCreated
+com.unity.transport | Unity.Networking.Transport | NetworkPipeline |
+com.unity.transport | Unity.Networking.Transport | NetworkEvent |
+com.unity.transport | Unity.Networking.Transport | FragmentationPipelineStage |
+com.unity.transport | Unity.Networking.Transport | ReliableSequencedPipelineStage |
+com.unity.transport | Unity.Networking.Transport.Utilities | FragmentationStageParameterExtensions | WithFragmentationStageParameters
+com.unity.transport | Unity.Networking.Transport.Utilities | ReliableStageParameterExtensions | WithReliableStageParameters
+com.unity.transport | Unity.Networking.Transport.Relay | RelayServerData | .ctor
+com.unity.transport | Unity.Networking.Transport.Relay | RelayParameterExtensions | WithRelayParameters
+
+# ---- Unity Collections (DataStream moved here in Transport 2) ---------------
+com.unity.collections | Unity.Collections | DataStreamReader | ReadUShort
+com.unity.collections | Unity.Collections | DataStreamReader | ReadByte
+com.unity.collections | Unity.Collections | DataStreamWriter | WriteUShort
+com.unity.collections | Unity.Collections | DataStreamWriter | WriteByte
+
+# ---- Unity Gaming Services -------------------------------------------------
+com.unity.services.core | Unity.Services.Core | UnityServices | InitializeAsync
+com.unity.services.core | Unity.Services.Core | UnityServices | State
+# The two services are static accessors over an interface: the members live on the
+# interface, and the static class only carries Instance. Naming the wrong one here is
+# what the checker caught on its first honest run.
+com.unity.services.authentication | Unity.Services.Authentication | AuthenticationService | Instance
+com.unity.services.authentication | Unity.Services.Authentication | IAuthenticationService | SignInAnonymouslyAsync
+com.unity.services.authentication | Unity.Services.Authentication | IAuthenticationService | IsSignedIn
+com.unity.services.relay | Unity.Services.Relay | RelayService | Instance
+com.unity.services.relay | Unity.Services.Relay | IRelayService | CreateAllocationAsync
+com.unity.services.relay | Unity.Services.Relay | IRelayService | GetJoinCodeAsync
+com.unity.services.relay | Unity.Services.Relay | IRelayService | JoinAllocationAsync
+com.unity.services.relay | Unity.Services.Relay.Models | Allocation | AllocationId
+com.unity.services.relay | Unity.Services.Relay.Models | JoinAllocation |
+
+# ---- AR Foundation 6 -------------------------------------------------------
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSession | state
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSession | CheckAvailability
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSession | Install
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARRaycastManager | Raycast
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARPlaneManager |
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARCameraManager |
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARCameraBackground |
+com.unity.xr.core-utils | Unity.XR.CoreUtils | XROrigin | Camera
+com.unity.xr.core-utils | Unity.XR.CoreUtils | XROrigin | CameraFloorOffsetObject
+com.unity.xr.core-utils | Unity.XR.CoreUtils | XROrigin | RequestedTrackingOriginMode
+
+# ---- Input System (AR camera pose) -----------------------------------------
+com.unity.inputsystem | UnityEngine.InputSystem.XR | TrackedPoseDriver | trackingType
+com.unity.inputsystem | UnityEngine.InputSystem.XR | TrackedPoseDriver | updateType
+com.unity.inputsystem | UnityEngine.InputSystem.XR | TrackedPoseDriver | positionInput
+com.unity.inputsystem | UnityEngine.InputSystem.XR | TrackedPoseDriver | rotationInput
+com.unity.inputsystem | UnityEngine.InputSystem | InputAction |
+com.unity.inputsystem | UnityEngine.InputSystem | InputActionProperty |
+
+# ---- types the completeness sweep found the port using ---------------------
+com.unity.services.core | Unity.Services.Core | ServicesInitializationState |
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSessionState |
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARRaycastHit |
+com.unity.xr.arfoundation | UnityEngine.XR.ARSubsystems | TrackableType |
+com.unity.xr.core-utils | Unity.XR.CoreUtils | TrackingOriginMode |
+com.unity.inputsystem | UnityEngine.InputSystem | InputActionType |
+com.unity.inputsystem | UnityEngine.InputSystem.XR | TrackingType |
+com.unity.inputsystem | UnityEngine.InputSystem.XR | UpdateType |
