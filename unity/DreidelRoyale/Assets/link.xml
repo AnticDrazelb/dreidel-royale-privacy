@@ -1,0 +1,17 @@
+<!--
+  IL2CPP strips code it cannot see being used, and JsonUtility reaches the network message
+  types through the serialisation system rather than through a call site it can trace. Losing
+  them would show up only in a device build, as messages that arrive and deserialise to null.
+-->
+<linker>
+  <assembly fullname="Assembly-CSharp">
+    <type fullname="DreidelRoyale.Net.NetMsg" preserve="all" />
+    <type fullname="DreidelRoyale.Net.NetState" preserve="all" />
+    <type fullname="DreidelRoyale.Core.Player" preserve="all" />
+    <type fullname="DreidelRoyale.Core.LifetimeStats" preserve="all" />
+    <type fullname="DreidelRoyale.Core.GameController/SaveBlob" preserve="all" />
+    <type fullname="DreidelRoyale.Core.GameController/Wrapper" preserve="all" />
+  </assembly>
+  <assembly fullname="System" preserve="all" />
+  <assembly fullname="System.Core" preserve="all" />
+</linker>

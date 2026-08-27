@@ -9,6 +9,7 @@ namespace UnityEngine.Rendering
                             OneMinusSrcColor, DstAlpha, OneMinusDstAlpha, SrcAlphaSaturate, OneMinusSrcAlpha }
     public enum RenderQueue { Background=1000, Geometry=2000, AlphaTest=2450, Transparent=3000, Overlay=4000 }
     public enum IndexFormat { UInt16, UInt32 }
+    public enum GraphicsDeviceType { OpenGLES2, OpenGLES3, Vulkan, Metal, Direct3D11 }
 }
 
 namespace UnityEngine

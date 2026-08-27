@@ -148,13 +148,55 @@ plaque quads flip their U coordinate to correct it (`Geo.PlaqueQuad`). That is o
 compensation in one place, rather than a negated Z or yaw at forty call sites and no way to
 read this code against the original.
 
+## Building for Android and iOS
+
+Run **Dreidel Royale → Configure for Android and iOS** once from the menu bar. It sets the
+things whose failure mode is silence, and **Validate build settings** re-checks them
+afterwards (it also runs automatically at the end of Configure).
+
+What it sets, and why each one bites:
+
+| Setting | If it's wrong |
+| --- | --- |
+| Android graphics API pinned to **OpenGLES3** | ARCore will not start under Vulkan, and Unity's auto list picks Vulkan first on a modern phone. AR reports "unsupported" on a capable device, with nothing in the log. |
+| Android **minSdk 24** | Below it, ARCore is unavailable. |
+| **IL2CPP + ARM64** | Play requires a 64-bit binary. |
+| iOS **camera usage description** | iOS does not warn when it's missing — it terminates the app the moment AR touches the camera. |
+| **Linear** colour space | The gems, emissives and tone mapping are authored linear; gamma flattens the whole set. |
+| **ARCore / ARKit loaders** ticked in XR Plug-in Management | The step everyone forgets. Builds and runs perfectly, just never finds a plane. |
+
+Two permissions are merged into the generated projects at build time rather than checked in,
+because a hand-written `AndroidManifest.xml` replaces Unity's (taking the launcher activity
+with it) and the AR packages contribute manifest entries of their own:
+
+- **Android** — `INTERNET`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE`. The last one
+  is what allows the multicast lock; without it the Wi-Fi driver drops the discovery broadcast
+  before the app sees it, and a host on the same network is simply never found.
+- **iOS** — `NSCameraUsageDescription` and `NSLocalNetworkUsageDescription`. Without the
+  second, iOS 14+ never shows the local-network prompt and discovery finds nothing, with no
+  error to explain it.
+
+### Why iPhone discovery does not use broadcast
+
+iOS 14 requires the `com.apple.developer.networking.multicast` entitlement for raw broadcast
+and multicast, and Apple grants it only on request. Rather than make shipping wait on a form,
+discovery falls back to walking the local /24 with ordinary outbound TCP: a few hundred
+connects with a short timeout, sixty-four at a time, settling in a couple of seconds. That
+needs nothing beyond the local-network prompt the plist key already covers.
+
+The host answers each probe with a greeting carrying its room code, which is also what lets a
+direct-IP connection fail honestly when the code is wrong rather than seating someone at a
+table they did not mean to join. On Android and desktop the broadcast path still runs first,
+because it answers in milliseconds; the scan is only the fallback.
+
 ## Type-checking outside the editor
 
 `tools/stubs/` holds a minimal Unity API surface so the port can be compiled without the
 editor — useful in CI, and how this port was checked as it was written:
 
 ```sh
-mcs -target:library -out:/tmp/out.dll tools/stubs/*.cs $(find DreidelRoyale/Assets/Scripts -name '*.cs')
+mcs -target:library -out:/tmp/out.dll tools/stubs/*.cs \
+    $(find DreidelRoyale/Assets/Scripts -name '*.cs') DreidelRoyale/Assets/Editor/*.cs
 ```
 
 The stubs are a compile-time convenience only. They are not a runtime shim, and nothing in

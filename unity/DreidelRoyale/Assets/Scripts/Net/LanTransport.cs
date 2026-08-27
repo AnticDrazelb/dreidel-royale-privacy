@@ -26,6 +26,14 @@ namespace DreidelRoyale.Net
         public const int BasePort = 47654;
         const string Magic = "DRDL1";
 
+        /// <summary>
+        /// The host's first frame on every accepted link, carrying the room code. It lets a
+        /// subnet scan tell a Dreidel table from any other service on the same port, and it
+        /// lets a direct-IP connection fail honestly when the code is wrong. Consumed inside
+        /// the transport - the game layer never sees it.
+        /// </summary>
+        const string RoomGreetingPrefix = "#ROOM:";
+
         public string Name { get { return "Wi-Fi"; } }
 
         public event Action OnReady;
@@ -102,6 +110,7 @@ namespace DreidelRoyale.Net
                     var peer = new LanPeer(client, this);
                     lock (_peers) _peers.Add(peer);
                     peer.Start();
+                    peer.SendRaw(RoomGreetingPrefix + _code);
                     Post(() => { if (OnPeerConnected != null) OnPeerConnected(peer); });
                 }
                 catch (SocketException) { break; }        // listener stopped
@@ -162,7 +171,7 @@ namespace DreidelRoyale.Net
             // (guest Wi-Fi and AP isolation both do).
             IPAddress direct;
             if (IPAddress.TryParse(_code, out direct)) { host = _code; }
-            else if (!Discover(out host, out port))
+            else if (!Discover(out host, out port) && !ScanSubnet(out host, out port))
             {
                 Post(() => Fail("No table with that code on this Wi-Fi. Check the code, or make sure both phones are on the same network."));
                 return;
@@ -191,9 +200,18 @@ namespace DreidelRoyale.Net
             }
         }
 
+        /// <summary>
+        /// UDP broadcast: one packet, an answer in milliseconds. Android and desktop allow it
+        /// freely. iOS 14 does not - raw broadcast and multicast need an entitlement Apple
+        /// grants only on request - so there this quietly finds nothing and the subnet scan
+        /// below does the work instead.
+        /// </summary>
         bool Discover(out string host, out int port)
         {
             host = null; port = BasePort;
+#if UNITY_IOS && !UNITY_EDITOR
+            return false;      // no broadcast entitlement; go straight to the scan
+#else
             UdpClient udp = null;
             try
             {
@@ -224,6 +242,112 @@ namespace DreidelRoyale.Net
             catch (Exception) { }
             finally { if (udp != null) { try { udp.Close(); } catch { } } }
             return false;
+#endif
+        }
+
+        /// <summary>
+        /// Walk the local /24 and ask every address whether it is holding this room.
+        ///
+        /// Slower than a broadcast, but it is ordinary outbound TCP, which every platform
+        /// allows — on iOS it needs nothing beyond the local-network prompt that
+        /// NSLocalNetworkUsageDescription already covers. A few hundred connects with a short
+        /// timeout, sixty-four at a time, settles in a couple of seconds.
+        /// </summary>
+        bool ScanSubnet(out string host, out int port)
+        {
+            host = null; port = BasePort;
+
+            var prefixes = new List<string>();
+            foreach (var addr in LocalAddresses())
+            {
+                int cut = addr.LastIndexOf('.');
+                if (cut > 0) prefixes.Add(addr.Substring(0, cut + 1));
+            }
+            if (prefixes.Count == 0) return false;
+
+            // Only the first two ports: a host lands past those only after a rare collision,
+            // and each extra port doubles the sweep.
+            var ports = new[] { BasePort, BasePort + 1 };
+            var found = new FoundTable();
+
+            foreach (var prefix in prefixes)
+            {
+                for (int block = 1; block < 255 && !found.Hit && _running; block += ScanBatch)
+                {
+                    var pending = new List<Thread>();
+                    for (int i = block; i < block + ScanBatch && i < 255; i++)
+                    {
+                        var ip = prefix + i;
+                        foreach (var candidate in ports)
+                        {
+                            var p = candidate;
+                            var t = new Thread(() => Probe(ip, p, found)) { IsBackground = true };
+                            pending.Add(t);
+                            t.Start();
+                        }
+                    }
+                    foreach (var t in pending) { try { t.Join(900); } catch { } }
+                }
+                if (found.Hit) break;
+            }
+
+            if (!found.Hit) return false;
+            host = found.Host;
+            port = found.Port;
+            return true;
+        }
+
+        const int ScanBatch = 32;   // x2 ports = 64 sockets in flight
+
+        class FoundTable
+        {
+            volatile bool _hit;
+            public string Host; public int Port;
+            public bool Hit { get { return _hit; } }
+            public void Set(string h, int p)
+            {
+                lock (this) { if (_hit) return; Host = h; Port = p; _hit = true; }
+            }
+        }
+
+        /// <summary>Connect, read the greeting, keep it only if the room code matches.</summary>
+        void Probe(string ip, int port, FoundTable found)
+        {
+            if (found.Hit) return;
+            TcpClient c = null;
+            try
+            {
+                c = new TcpClient();
+                var async = c.BeginConnect(ip, port, null, null);
+                if (!async.AsyncWaitHandle.WaitOne(400) || !c.Connected) return;
+                c.EndConnect(async);
+
+                c.ReceiveTimeout = 500;
+                var stream = c.GetStream();
+                var header = new byte[4];
+                if (!ReadExact(stream, header, 4)) return;
+                int len = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+                if (len <= 0 || len > 256) return;
+                var body = new byte[len];
+                if (!ReadExact(stream, body, len)) return;
+
+                var text = Encoding.UTF8.GetString(body);
+                if (text == RoomGreetingPrefix + _code) found.Set(ip, port);
+            }
+            catch (Exception) { }
+            finally { if (c != null) { try { c.Close(); } catch { } } }
+        }
+
+        static bool ReadExact(NetworkStream stream, byte[] buffer, int count)
+        {
+            int got = 0;
+            while (got < count)
+            {
+                int n = stream.Read(buffer, got, count - got);
+                if (n <= 0) return false;
+                got += n;
+            }
+            return true;
         }
 
         // ---------------------------------------------------------------
@@ -271,6 +395,19 @@ namespace DreidelRoyale.Net
 
         internal void PeerMessage(LanPeer p, string json)
         {
+            if (json.StartsWith(RoomGreetingPrefix))
+            {
+                // A direct-IP connection can land on the wrong table; say so rather than
+                // seating the player somewhere they did not mean to be.
+                var theirCode = json.Substring(RoomGreetingPrefix.Length);
+                if (!string.IsNullOrEmpty(_code) && !IPAddress.TryParse(_code, out _)
+                    && !string.Equals(theirCode, _code, StringComparison.OrdinalIgnoreCase))
+                {
+                    Post(() => Fail("That table's code is " + theirCode + ", not " + _code + "."));
+                    p.Close();
+                }
+                return;      // transport-level: the game never sees it
+            }
             Post(() => { if (OnMessage != null) OnMessage(p.IsHostLink ? null : p, json); });
         }
 
@@ -380,6 +517,9 @@ namespace DreidelRoyale.Net
             }
             return true;
         }
+
+        /// <summary>The transport's own frame, sent before any game message.</summary>
+        internal void SendRaw(string text) { Send(text); }
 
         public void Send(string json)
         {
