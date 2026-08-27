@@ -18,6 +18,13 @@ namespace DreidelRoyale.Core
         public bool Forfeited;
         public string Skin = "";
 
+        /// <summary>
+        /// Minted by the host at first join and kept client-side. A held seat is rebound by
+        /// name, and a name alone is guessable, so the token is what stops a stranger walking
+        /// into a dropped player's chair.
+        /// </summary>
+        public string Token = "";
+
         public Player() { }
         public Player(string id, string name, int coins, bool cpu = false)
         {

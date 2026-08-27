@@ -37,6 +37,12 @@ namespace DreidelRoyale.Core
         public int CpuCount = 1;
         public int AnteAmount = Mathf.Clamp(Store.Int("drdl-ante", 1), 1, 3);
 
+        /// <summary>Set when a table is networked. Null for single-device play.</summary>
+        public Net.NetManager Net;
+
+        bool Online { get { return Net != null && Net.Active; } }
+        bool HostOrLocal { get { return IsLocalGame || (Net != null && Net.IsHost); } }
+
         int _startingPlayers;
         bool _showdownShown;
         int _lastTurnIndex = -1;
@@ -44,6 +50,46 @@ namespace DreidelRoyale.Core
         Action<float> _pendingImpact;
 
         public string AppliedEnv { get; private set; }
+
+        // ---- surface the network layer needs ----
+        public int StartingPlayers { get { return _startingPlayers; } set { _startingPlayers = value; } }
+        public void ResetShowdown() { _showdownShown = false; }
+        public void TriggerShowdownPublic() { TriggerShowdown(); }
+        public void BeginPlayPublic() { BeginPlay(); }
+        public void CheckWinConditionPublic(int aliveCount) { CheckWinCondition(aliveCount); }
+        public void PerformNetworkSpin(float delta, float final, float wobble, float duration, float power)
+        {
+            if (IsSpinning) return;
+            if (_spinRoutine != null) StopCoroutine(_spinRoutine);
+            _spinRoutine = StartCoroutine(PerformSpin(delta, final, wobble, duration, power));
+        }
+
+        /// <summary>
+        /// A spin that never resolved - or a charge in flight when the host vanished - must
+        /// never block whoever takes the chair next.
+        /// </summary>
+        public void HardResetSpin()
+        {
+            if (_spinRoutine != null) { StopCoroutine(_spinRoutine); _spinRoutine = null; }
+            StopAllCoroutines();
+            IsSpinning = false;
+            IsCharging = false;
+            _pendingImpact = null;
+            _lastTurnIndex = -1;
+            Hud.SetPowerRing(0f);
+            Sfx.StopRumble();
+            Sfx.StopScrape();
+            try { View.ChargeEnd(); View.SetCam("default"); } catch { }
+        }
+
+        public void QuitToMenuFromNetwork()
+        {
+            StopDangerBeat();
+            G = new GameState();
+            IsLocalGame = true;
+            Music.SetIntensity(0);
+            UI.BackToLanding();
+        }
 
         /// <summary>Raised after a table is dressed, so the AR layer can honour its wishes.</summary>
         public Action<EnvDef> OnEnvApplied;
@@ -132,6 +178,7 @@ namespace DreidelRoyale.Core
             G.Stats = new GameStats();
             _startingPlayers = G.Players.Count;
             _showdownShown = false;
+            _winnerShown = false;
             _lastTurnIndex = -1;
             Music.SetIntensity(1);
             AnteUp(true);
@@ -186,6 +233,7 @@ namespace DreidelRoyale.Core
             if (activeCount > 1) return;
             var winner = G.Players.FirstOrDefault(p => !p.Eliminated);
             G.Status = GameStatus.GameOver;
+            if (!IsLocalGame && Net != null && Net.IsHost) Net.Broadcast();
             ShowWinner(winner != null ? winner.Name : "Nobody");
         }
 
@@ -227,16 +275,21 @@ namespace DreidelRoyale.Core
             var p = G.Current;
             if (p == null) return false;
             if (p.Cpu) return false;          // CPU turns are hands-free; humans can't spin for them
-            return IsLocalGame;
+            if (IsLocalGame) return true;     // pass and play: whoever is holding the phone
+            return Net != null && Net.IsMySeat(p);
         }
 
         public void UserTriggerSpin(float power)
         {
             if (IsSpinning) return;
-            ExecutePhysicsSpin(power);
+            if (IsLocalGame) { ExecutePhysicsSpin(power); return; }
+            // The host resolves every spin, including its own, so one landing exists and
+            // everyone renders it. A guest asks; it does not decide.
+            if (Net != null && Net.IsHost) ExecutePhysicsSpin(power);
+            else if (Net != null) Net.SendSpinRequest(power);
         }
 
-        void ExecutePhysicsSpin(float power)
+        public void ExecutePhysicsSpin(float power)
         {
             if (IsSpinning) return;
             power = Mathf.Clamp(power, 0.15f, 1f);
@@ -249,6 +302,8 @@ namespace DreidelRoyale.Core
             float final = View.GetRotDeg() - totalDelta;          // authoritative landing rotation
             var side = Rules.ResolveFace(final);
             final = side.Angle + 360f * Mathf.Round((final - side.Angle) / 360f);   // land square on the face
+
+            if (!IsLocalGame && Net != null) Net.BroadcastSpin(totalDelta, final, wobble, duration, power);
 
             if (_spinRoutine != null) StopCoroutine(_spinRoutine);
             _spinRoutine = StartCoroutine(PerformSpin(totalDelta, final, wobble, duration, power));
@@ -372,17 +427,29 @@ namespace DreidelRoyale.Core
 
             // ---- APPLY ----
             yield return new WaitForSeconds(2.1f);
+            if (!HostOrLocal)
+            {
+                // A guest renders the spin and then waits: the host owns the consequences, and
+                // they arrive as the next state update.
+                IsSpinning = false;
+                Hud.Refresh();
+                yield break;
+            }
             ApplyOutcome(side);
 
             yield return new WaitForSeconds(0.7f);
             IsSpinning = false;
-            Hud.Refresh();
-            var nx = G.Current;
-            if (G.Status == GameStatus.Playing && nx != null)
+            if (IsLocalGame)
             {
-                if (nx.Cpu) MaybeCpuTurn();
-                else if (!G.Players.Any(p => p.Cpu)) UI.Toast("Pass to " + nx.Name);
+                Hud.Refresh();
+                var nx = G.Current;
+                if (G.Status == GameStatus.Playing && nx != null)
+                {
+                    if (nx.Cpu) MaybeCpuTurn();
+                    else if (!G.Players.Any(p => p.Cpu)) UI.Toast("Pass to " + nx.Name);
+                }
             }
+            else if (Net != null) Net.Broadcast();
         }
 
         void ApplyOutcome(Side side)
@@ -579,8 +646,15 @@ namespace DreidelRoyale.Core
         // ---------------------------------------------------------------
         //  the end
         // ---------------------------------------------------------------
+        bool _winnerShown;
+
         public void ShowWinner(string name)
         {
+            // The host reaches this both directly and through the GAME_OVER broadcast, and a
+            // guest can be handed the same final state more than once. Announcing twice would
+            // count the game twice in the lifetime record the unlocks hang off.
+            if (_winnerShown) return;
+            _winnerShown = true;
             ClearCpuSave();
             var st = G.Stats;
             var w = G.Players.FirstOrDefault(p => !p.Eliminated);
@@ -591,7 +665,9 @@ namespace DreidelRoyale.Core
             bool humanWon = w != null && w.Id == "HUMAN";
             bool humanLost = isCpuGame && human != null && !humanWon;
 
-            // persist lifetime stats
+            // Lifetime records count every game this device sat through, online included -
+            // spins and sweeps are spins and sweeps. Wins and losses stay gated on a game
+            // against the house, so a win here can't be handed to you by a friend leaving.
             var S = Stats.Load();
             var pre = S.Clone();                 // snapshot for the unlock diff
             S.games++;
@@ -684,10 +760,12 @@ namespace DreidelRoyale.Core
 
         public void Rematch()
         {
+            if (!HostOrLocal) return;         // observers and guests wait for the host
             UI.HideWinner();
             View.SetDrama(false);
             BeginPlay();
-            MaybeCpuTurn();
+            if (IsLocalGame) MaybeCpuTurn();
+            else if (Net != null) Net.Broadcast();
         }
 
         // ---------------------------------------------------------------

@@ -52,6 +52,9 @@ namespace DreidelRoyale.UI
         readonly Queue<KeyValuePair<string, bool>> _toastQ = new Queue<KeyValuePair<string, bool>>();
         bool _toastShowing;
 
+        /// <summary>The networking screens, when multiplayer is present.</summary>
+        public DreidelRoyale.Net.NetUI NetScreens;
+
         // ---- AR ----
         public DreidelRoyale.AR.ArController Ar;
         Text _arLabel, _arSub, _arWhy, _arBoardLabel, _arHint;
@@ -111,6 +114,16 @@ namespace DreidelRoyale.UI
             _backdrop.enabled = false;
         }
 
+        /// <summary>
+        /// Register a screen built by someone else - the networking screens live with the
+        /// networking code, but they are the same kind of screen and share its transitions.
+        /// </summary>
+        public RectTransform MakeScreen(string id, Action<Transform> build)
+        {
+            BuildScreen(id, build);
+            return _screens[id];
+        }
+
         void BuildScreen(string id, Action<Transform> build)
         {
             var go = UIKit.Node("screen-" + id, Root);
@@ -159,8 +172,17 @@ namespace DreidelRoyale.UI
             _resumeBtn.gameObject.SetActive(false);
 
             UIKit.Btn(c, "Single Player", UIKit.BtnKind.Primary, () => { Sfx.Play("tick"); Show("cpu"); });
-            UIKit.Btn(c, "Pass & Play", UIKit.BtnKind.Ghost, () => { Sfx.Play("tick"); Show("local"); });
             UIKit.Btn(c, "Decision Dreidel", UIKit.BtnKind.Ghost, () => { Sfx.Play("tick"); OpenCustom(); });
+
+            UIKit.Spacer(c, 12f);
+            UIKit.SectionLabel(c, "Play with friends");
+            var netRow = UIKit.Row(c, 8f, 46f);
+            UIKit.Btn(netRow.transform, "Host", UIKit.BtnKind.Ghost,
+                      () => { Sfx.Play("tick"); if (NetScreens != null) NetScreens.BeginHost(); }, 96f, 46f, 15);
+            UIKit.Btn(netRow.transform, "Join", UIKit.BtnKind.Ghost,
+                      () => { Sfx.Play("tick"); if (NetScreens != null) NetScreens.BeginJoin(); }, 96f, 46f, 15);
+            UIKit.Btn(netRow.transform, "Pass & Play", UIKit.BtnKind.Ghost,
+                      () => { Sfx.Play("tick"); Show("local"); }, 130f, 46f, 15);
 
             UIKit.Spacer(c, 10f);
             var row = UIKit.Row(c, 10f, 40f);
@@ -691,6 +713,7 @@ namespace DreidelRoyale.UI
             else if (id == "records") RefreshRecords();
             else if (id == "change") RefreshChange();
             else if (id == "landing") RefreshResumeButton();
+            else if (id == "net-name" && NetScreens != null) NetScreens.OnNameScreenShown();
 
             RectTransform rt;
             if (_screens.TryGetValue(id, out rt)) StartCoroutine(ScreenIn(rt));
@@ -724,6 +747,7 @@ namespace DreidelRoyale.UI
             _pause.gameObject.SetActive(false);
             _winner.gameObject.SetActive(false);
             _howto.gameObject.SetActive(false);
+            if (NetScreens != null) NetScreens.HideReconnect();
             Current = "game";
             Hud.Show(true);
         }
@@ -734,19 +758,29 @@ namespace DreidelRoyale.UI
             Sfx.Play("tick");
         }
 
+        /// <summary>Back to the landing screen, whatever was showing.</summary>
+        public void BackToLanding()
+        {
+            _pause.gameObject.SetActive(false);
+            _winner.gameObject.SetActive(false);
+            _howto.gameObject.SetActive(false);
+            if (NetScreens != null) NetScreens.ShowObserverChip(false);
+            View.SetDrama(false);
+            View.SetPotCoins(0);
+            Show("landing");
+        }
+
         void QuitToMenu()
         {
             Sfx.Play("tick");
             GC.StopDangerBeat();
+            if (GC.Net != null) GC.Net.LeaveEverything();     // tell the table before walking away
+            GC.IsLocalGame = true;
             GC.G.Status = GameStatus.Lobby;
             GC.CustomMode = false;
             View.SetCustomFaces(false, null);
-            View.SetDrama(false);
-            View.SetPotCoins(0);
-            _pause.gameObject.SetActive(false);
-            _winner.gameObject.SetActive(false);
             GC.Music.SetIntensity(0);
-            Show("landing");
+            BackToLanding();
         }
 
         public void ShowHowTo()

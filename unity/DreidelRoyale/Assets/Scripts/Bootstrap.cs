@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using DreidelRoyale.AR;
 using DreidelRoyale.Audio;
 using DreidelRoyale.Core;
+using DreidelRoyale.Net;
 using DreidelRoyale.UI;
 using DreidelRoyale.Visual;
 
@@ -28,6 +29,8 @@ namespace DreidelRoyale
         Hud _hud;
         MusicEngine _music;
         ArController _ar;
+        NetManager _net;
+        NetUI _netUi;
 
         void Awake()
         {
@@ -143,7 +146,15 @@ namespace DreidelRoyale
             _hud.GC = _gc; _hud.View = _view; _hud.UI = _ui;
             _gc.View = _view; _gc.Hud = _hud; _gc.UI = _ui; _gc.Music = _music;
 
+            _net = mgr.AddComponent<NetManager>();
+            _netUi = mgr.AddComponent<NetUI>();
+            _net.GC = _gc; _net.UI = _ui; _net.Screens = _netUi;
+            _netUi.UI = _ui; _netUi.GC = _gc; _netUi.Net = _net;
+            _gc.Net = _net;
+            _ui.NetScreens = _netUi;
+
             _ui.Build(canvas);
+            _netUi.Build(_ui.Root);
         }
 
         void BuildAr()
