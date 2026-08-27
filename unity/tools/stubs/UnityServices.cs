@@ -68,17 +68,7 @@ namespace Unity.Networking.Transport
         public static NetworkEndpoint AnyIpv4 { get { return default(NetworkEndpoint); } }
     }
 
-    // In the real package these three are `ref this` extension methods returning
-    // `ref NetworkSettings`. mcs rejects that C# 7.2 form, so the stub declares them as
-    // instance members instead: identical at every call site the port uses, since the
-    // returned reference is always discarded.
-    public struct NetworkSettings
-    {
-        public void WithFragmentationStageParameters(int payloadCapacity = 4 * 1024) { }
-        public void WithReliableStageParameters(int windowSize = 32) { }
-        public void WithRelayParameters(ref Relay.RelayServerData serverData,
-                                        int relayConnectionTimeMS = 9000) { }
-    }
+    public struct NetworkSettings { }
 
     public struct NetworkPipeline { }
 
@@ -145,9 +135,35 @@ namespace Unity.Networking.Transport
     }
 }
 
+namespace Unity.Networking.Transport.Utilities
+{
+    /// <summary>
+    /// The pipeline stage parameters. These are the reason the stub declares them here
+    /// rather than on NetworkSettings itself: in the real package they are extension
+    /// methods in THIS namespace, so calling them needs its own using directive, and a
+    /// stub that put them on the struct would happily compile code the editor rejects.
+    /// (The real ones take `ref this` and return `ref NetworkSettings`; mcs cannot express
+    /// that C# 7.2 form, and the returned reference is discarded at every call site here.)
+    /// </summary>
+    public static class PipelineParameterExtensions
+    {
+        public static NetworkSettings WithFragmentationStageParameters(
+            this NetworkSettings settings, int payloadCapacity = 4 * 1024) { return settings; }
+
+        public static NetworkSettings WithReliableStageParameters(
+            this NetworkSettings settings, int windowSize = 32) { return settings; }
+    }
+}
+
 namespace Unity.Networking.Transport.Relay
 {
-    using Unity.Services.Relay.Models;
-
     public struct RelayServerData { }
+
+    /// Same reasoning as above: an extension method, so the using directive is required.
+    public static class RelayParameterExtensions
+    {
+        public static NetworkSettings WithRelayParameters(
+            this NetworkSettings settings, ref RelayServerData serverData,
+            int relayConnectionTimeMS = 9000) { return settings; }
+    }
 }

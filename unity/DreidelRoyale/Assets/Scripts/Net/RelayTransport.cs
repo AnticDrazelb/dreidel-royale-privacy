@@ -20,6 +20,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Relay;
+using Unity.Networking.Transport.Utilities;   // the pipeline stage parameter extensions
 using Unity.Services.Authentication;
 using Unity.Services.Core;
 using Unity.Services.Relay;
