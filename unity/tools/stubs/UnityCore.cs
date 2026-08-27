@@ -47,6 +47,7 @@ namespace UnityEngine
         public static Vector3 Cross(Vector3 a, Vector3 b){return a;}
         public static float Distance(Vector3 a, Vector3 b){return 0;}
         public static Vector3 Lerp(Vector3 a, Vector3 b, float t){return a;}
+        public static Vector3 ClampMagnitude(Vector3 v, float m){return v;}
         public static implicit operator Vector2(Vector3 v){return new Vector2(v.x,v.y);}
     }
     public struct Vector4 {

@@ -29,7 +29,7 @@ namespace DreidelRoyale.Visual
         public Material TopMat;
         public Transform MenorahGroup, DiamondGem, FounderMark, OilRing;
         readonly List<MeshRenderer> _letterMeshes = new List<MeshRenderer>();
-        public MeshRenderer OilMesh;
+        public OilFluid Oil = new OilFluid();
         public Transform OilGlint;
 
         string _currentSkin = "";
@@ -174,26 +174,21 @@ namespace DreidelRoyale.Visual
         }
 
         /// <summary>
-        /// The Oil Miracle's liquid: a square-sided fill matching the vessel. It is a child
-        /// of the spinner, so it inherits yaw exactly and its corners stay aligned with the
-        /// glass walls. Flat top cap = the oil surface; the sides darken toward the bottom.
+        /// The Oil Miracle's liquid. A child of the spinner, so it inherits the vessel's yaw
+        /// exactly and its corners stay aligned with the glass walls; the surface itself is a
+        /// simulated height field rather than a flat cap. The sides keep the authored gradient
+        /// that darkens toward the bottom, so the fill's edges dissolve into the vessel
+        /// instead of reading as a block.
         /// </summary>
         void BuildOilFill()
         {
             var sideMat = MatUtil.UnlitTex(Tex.OilSide(), Color.white);
-            var surfMat = MatUtil.UnlitColor(Hex.FromInt(0x8a5410));   // flat amber surface
+            var surfMat = MatUtil.Pbr(Hex.FromInt(0x8a5410), 0.15f, 0.18f, Hex.FromInt(0x2a1804), 0.35f);
             var botMat = MatUtil.UnlitColor(Hex.FromInt(0x050300));
 
-            // half-fill: surface just below the plaque midline, base inside the body.
-            // Face order is three.js's: [+x, -x, +y(top), -y(bottom), +z, -z]
-            var go = new GameObject("oilFill");
-            go.transform.SetParent(Spinner, false);
-            go.transform.localPosition = new Vector3(0, -0.34f, 0);
-            go.AddComponent<MeshFilter>().sharedMesh = Geo.BoxSixMaterials(1.04f, 0.66f, 1.04f);
-            OilMesh = go.AddComponent<MeshRenderer>();
-            OilMesh.sharedMaterials = new[] { sideMat, sideMat, surfMat, botMat, sideMat, sideMat };
-            OilMesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            go.SetActive(false);
+            // Lit, unlike the sides: a moving surface only reads as liquid if the light rolls
+            // across it, and the sim writes real normals for exactly that.
+            Oil.Build(Spinner, surfMat, sideMat, botMat);
 
             OilGlint = Fx.GlowSprite(Spinner, "rgba(255,205,90,0.8)", 0.55f, 0f);
             OilGlint.gameObject.SetActive(false);
@@ -371,7 +366,7 @@ namespace DreidelRoyale.Visual
             }
 
             if (OilRing) OilRing.gameObject.SetActive(kind == "oil");
-            if (OilMesh) OilMesh.gameObject.SetActive(kind == "oil");
+            Oil.SetActive(kind == "oil");
             if (OilGlint) OilGlint.gameObject.SetActive(kind == "oil");
             if (FounderMark) FounderMark.gameObject.SetActive(kind == "founder");
             if (MenorahGroup) MenorahGroup.gameObject.SetActive(kind == "streaker");

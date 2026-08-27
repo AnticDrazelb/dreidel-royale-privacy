@@ -212,6 +212,7 @@ namespace DreidelRoyale.Visual
 
             _tumble = null; _recover = null;
             _mode = "spin";
+            Dreidel.Oil.Disturb(0.5f + power * 0.8f);   // the launch throws it too
         }
 
         public void StartRecover(float dur = 0.5f)
@@ -351,7 +352,7 @@ namespace DreidelRoyale.Visual
 
             PotGlow();
             NerTamid();
-            OilSlosh();
+            OilSlosh(dt);
             SpinRings(dt);
             BurstDecay(dt);
             RimDrama();
@@ -531,32 +532,29 @@ namespace DreidelRoyale.Visual
         }
 
         /// <summary>
-        /// The Oil Miracle's liquid inherits the vessel's yaw and only TILTS toward world
-        /// gravity, so the surface leans downhill through wobbles and topples. Tilt is clamped
-        /// so the rim can never reach the glass; a topple pins the lean at its maximum, which
-        /// reads as thick oil straining toward the ground.
+        /// Step the Oil Miracle's fluid. It is handed the vessel itself and works out what the
+        /// liquid feels from there: the tilt sets the plane it relaxes toward, the vessel's own
+        /// acceleration throws it at the walls, and the spin rate raises the parabola a
+        /// rotating liquid actually forms.
         /// </summary>
-        void OilSlosh()
+        void OilSlosh(float dt)
         {
-            if (Dreidel.OilMesh == null || !Dreidel.OilMesh.gameObject.activeSelf) return;
-            float spinForce = _streakEnergy * 0.9f;
-            var inv = Quaternion.Inverse(Dreidel.Spinner.rotation);
-            var down = inv * Vector3.down;                  // world-down, in local space
-            const float CLAMP = 0.24f;                      // max lean ~17 degrees
-            float tgtX = Mathf.Clamp(down.z * 0.9f + Mathf.Cos(_tGlobal * 9f) * spinForce * 0.12f, -CLAMP, CLAMP);
-            float tgtZ = Mathf.Clamp(-down.x * 0.9f + Mathf.Sin(_tGlobal * 9f) * spinForce * 0.12f, -CLAMP, CLAMP);
-            _oilSlosh.x += (tgtX - _oilSlosh.x) * 0.1f;     // viscous spring
-            _oilSlosh.y += (tgtZ - _oilSlosh.y) * 0.1f;
-            Dreidel.OilMesh.transform.localRotation =
-                Quaternion.Euler(_oilSlosh.x * Mathf.Rad2Deg, 0, _oilSlosh.y * Mathf.Rad2Deg);
+            if (!Dreidel.Oil.Active) return;
+
+            // Angular rate straight off the yaw the spin is driving, rather than a stand-in.
+            float spinRate = dt > 0f ? Mathf.Abs(_rotDeg - _lastRotDeg) * Mathf.Deg2Rad / dt : 0f;
+            _lastRotDeg = _rotDeg;
+
+            Dreidel.Oil.Step(dt, Dreidel.Spinner, spinRate);
+
             if (Dreidel.OilGlint)
             {
-                var op = Dreidel.OilMesh.transform.localPosition;
-                Dreidel.OilGlint.localPosition = new Vector3(op.x, op.y + 0.3f, op.z);
-                Fx.SetGlow(Dreidel.OilGlint, 0.18f + spinForce * 0.35f);
+                // the glint rides the highest point of the surface, wherever the slosh put it
+                Dreidel.OilGlint.localPosition = Dreidel.Oil.SurfacePeak() + Vector3.up * 0.04f;
+                Fx.SetGlow(Dreidel.OilGlint, 0.18f + Mathf.Min(spinRate / 30f, 1f) * 0.35f);
             }
         }
-        Vector2 _oilSlosh;
+        float _lastRotDeg;
 
         /// <summary>
         /// Spin energy rings — a wobbling stack that reads as a motion blur. One flat hoop
@@ -791,6 +789,7 @@ namespace DreidelRoyale.Visual
                         if (!_tumble.Impacted && k.y >= 0.85f)
                         {
                             _tumble.Impacted = true;
+                            Dreidel.Oil.Disturb(-0.9f - _tumble.Power * 1.4f);   // the oil feels the landing
                             DustBurst(Mathf.RoundToInt(8 + _tumble.Power * 14), _tumble.Power);
                             if (OnImpact != null) OnImpact(_tumble.Power);
                         }
