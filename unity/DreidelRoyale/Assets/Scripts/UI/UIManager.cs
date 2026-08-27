@@ -751,6 +751,7 @@ namespace DreidelRoyale.UI
             else if (id == "change") RefreshChange();
             else if (id == "landing") RefreshResumeButton();
             else if (id == "net-name" && NetScreens != null) NetScreens.OnNameScreenShown();
+            else if (id == "net-code" && NetScreens != null) NetScreens.OnCodeScreenShown();
 
             if (Chat != null) Chat.SetAvailable(id == "net-lobby" && GC.Net != null && GC.Net.Active);
 

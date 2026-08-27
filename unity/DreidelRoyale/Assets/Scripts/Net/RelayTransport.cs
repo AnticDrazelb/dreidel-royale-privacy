@@ -1,19 +1,23 @@
-// Internet play over Unity Relay.
+// Internet play, over Unity Relay.
 //
-// Guarded because it needs three packages that this project does not ship by default
-// (com.unity.services.core, com.unity.services.authentication, com.unity.services.relay)
-// plus com.unity.transport. Adding them and defining DREIDEL_RELAY turns it on; see
-// unity/README.md for the three steps. LAN play needs none of this and always works.
+// Relay is Unity's own free-tier connectivity service: the host asks for an allocation and
+// gets back a short join code; guests dial that code and the relay carries the packets
+// between them. Nobody has to open a port, and neither phone ever learns the other's
+// address - which is the whole reason the web build used PeerJS, and why this maps onto the
+// existing room-code UX without changing a single screen's shape.
 //
-// Relay is Unity's own free-tier NAT punch-through: the host allocates, gets back a join
-// code, and guests dial that code. It is the closest thing to what PeerJS gave the web
-// build, and the room-code UX is identical either way.
-#if DREIDEL_RELAY
+// It needs a linked (free) Unity project - see unity/README.md. When there isn't one, the
+// failure is reported as a line a player can act on, and Same Wi-Fi still works with no
+// account at all.
+//
+// This is a plain class, not a MonoBehaviour, because NetManager already calls Poll() once
+// per frame and every asynchronous step below is advanced from there. That keeps it
+// interchangeable with LanTransport in TransportFactory, and keeps all Unity API contact on
+// the main thread without a single lock.
 using System;
-using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Relay;
 using Unity.Services.Authentication;
@@ -24,11 +28,16 @@ using UnityEngine;
 
 namespace DreidelRoyale.Net
 {
-    public class RelayTransport : MonoBehaviour, INetTransport
+    public class RelayTransport : INetTransport
     {
-        public const int MaxGuests = 7;          // eight seats at the table, host included
+        /// <summary>Eight seats at the table, the host's chair included.</summary>
+        public const int MaxGuests = 7;
+
+        /// <summary>How long the whole open-a-room dance gets before we call it dead.</summary>
+        const float SetupTimeout = 25f;
 
         public string Name { get { return "Online"; } }
+        public bool IsOnline { get { return true; } }
 
         public event Action OnReady;
         public event Action<INetPeer> OnPeerConnected;
@@ -40,217 +49,396 @@ namespace DreidelRoyale.Net
         public bool IsReady { get; private set; }
         public INetPeer HostLink { get { return _hostPeer; } }
 
-        /// <summary>The relay join code, which is what players actually type. Host side only.</summary>
-        public string JoinCode { get; private set; }
+        /// <summary>
+        /// The relay's own join code. Unlike a LAN table we cannot choose it: it comes back
+        /// with the allocation, so it is empty until the room is actually open.
+        /// </summary>
+        public string RoomCode { get { return _joinCode ?? ""; } }
+
+        // ---------------------------------------------------------------
+        //  the asynchronous half, advanced one step per Poll()
+        // ---------------------------------------------------------------
+        enum Phase { Idle, Services, SignIn, Allocate, JoinCode, Dial, Bind, Live, Dead }
+
+        Phase _phase = Phase.Idle;
+        bool _asHost;
+        string _joinCode;
+        float _phaseStart;
+
+        Task _servicesTask;
+        Task _signInTask;
+        Task<Allocation> _allocTask;
+        Task<string> _codeTask;
+        Task<JoinAllocation> _joinTask;
 
         NetworkDriver _driver;
+        NetworkPipeline _pipeline;
         NetworkConnection _clientConn;
         readonly List<NetworkConnection> _serverConns = new List<NetworkConnection>();
         readonly Dictionary<int, RelayPeer> _peers = new Dictionary<int, RelayPeer>();
         RelayPeer _hostPeer;
-        bool _isHost, _running;
 
         // ---------------------------------------------------------------
-        public void Host(string code) { StartCoroutine(HostRoutine()); }
-        public void Join(string code) { StartCoroutine(JoinRoutine(RoomCode.Clean(code))); }
-
-        IEnumerator EnsureServices()
+        //  entry points
+        // ---------------------------------------------------------------
+        /// <summary>`preferredCode` is ignored: a relay mints the code, we don't get a say.</summary>
+        public void Host(string preferredCode)
         {
-            if (UnityServices.State == ServicesInitializationState.Uninitialized)
-            {
-                var init = UnityServices.InitializeAsync();
-                while (!init.IsCompleted) yield return null;
-            }
-            if (UnityServices.State != ServicesInitializationState.Initialized)
-            {
-                Fail("Online play needs a linked Unity project. Wi-Fi play works without one.");
-                yield break;
-            }
-            if (!AuthenticationService.Instance.IsSignedIn)
-            {
-                var signIn = AuthenticationService.Instance.SignInAnonymouslyAsync();
-                while (!signIn.IsCompleted) yield return null;
-                if (signIn.IsFaulted) { Fail("Couldn't reach the online service."); yield break; }
-            }
+            Shutdown();
+            _asHost = true;
+            Advance(Phase.Services);
         }
 
-        IEnumerator HostRoutine()
+        public void Join(string code)
         {
-            yield return EnsureServices();
-            if (UnityServices.State != ServicesInitializationState.Initialized) yield break;
-
-            Allocation alloc = null;
-            var task = RelayService.Instance.CreateAllocationAsync(MaxGuests);
-            while (!task.IsCompleted) yield return null;
-            if (task.IsFaulted) { Fail("Couldn't open an online table."); yield break; }
-            alloc = task.Result;
-
-            var codeTask = RelayService.Instance.GetJoinCodeAsync(alloc.AllocationId);
-            while (!codeTask.IsCompleted) yield return null;
-            if (codeTask.IsFaulted) { Fail("Couldn't get a room code."); yield break; }
-            JoinCode = codeTask.Result;
-
-            var settings = new NetworkSettings();
-            settings.WithRelayParameters(ref RelayServerData(alloc, "udp"));
-            _driver = NetworkDriver.Create(settings);
-            if (_driver.Bind(NetworkEndPoint.AnyIpv4) != 0) { Fail("Couldn't bind the online table."); yield break; }
-            _driver.Listen();
-
-            _isHost = true; _running = true; IsReady = true;
-            if (OnReady != null) OnReady();
+            Shutdown();
+            _asHost = false;
+            _joinCode = Net.RoomCode.Clean(code);
+            Advance(Phase.Services);
         }
 
-        IEnumerator JoinRoutine(string code)
+        void Advance(Phase next)
         {
-            yield return EnsureServices();
-            if (UnityServices.State != ServicesInitializationState.Initialized) yield break;
-
-            var task = RelayService.Instance.JoinAllocationAsync(code);
-            while (!task.IsCompleted) yield return null;
-            if (task.IsFaulted) { Fail("No online table with that code."); yield break; }
-
-            var settings = new NetworkSettings();
-            settings.WithRelayParameters(ref RelayServerData(task.Result, "udp"));
-            _driver = NetworkDriver.Create(settings);
-            if (_driver.Bind(NetworkEndPoint.AnyIpv4) != 0) { Fail("Couldn't start the connection."); yield break; }
-
-            _clientConn = _driver.Connect();
-            _isHost = false; _running = true;
+            _phase = next;
+            _phaseStart = Time.realtimeSinceStartup;
         }
-
-        static ref RelayServerData RelayServerData(Allocation a, string type)
-        {
-            _scratch = new RelayServerData(a, type);
-            return ref _scratch;
-        }
-
-        static RelayServerData _scratch;
-
-        static ref RelayServerData RelayServerData(JoinAllocation a, string type)
-        {
-            _scratchJoin = new RelayServerData(a, type);
-            return ref _scratchJoin;
-        }
-
-        static RelayServerData _scratchJoin;
 
         // ---------------------------------------------------------------
         public void Poll()
         {
-            if (!_running || !_driver.IsCreated) return;
-            _driver.ScheduleUpdate().Complete();
+            StepSetup();
+            StepNetwork();
+        }
 
-            if (_isHost)
+        void StepSetup()
+        {
+            if (_phase == Phase.Idle || _phase == Phase.Live || _phase == Phase.Dead) return;
+
+            // One clock over the whole sequence, so a step that hangs (no signal, a service
+            // that never answers) fails visibly instead of leaving the lobby spinning.
+            if (Time.realtimeSinceStartup - _phaseStart > SetupTimeout)
             {
-                NetworkConnection c;
-                while ((c = _driver.Accept()) != default(NetworkConnection))
+                Fail(_asHost ? "Couldn't open an online table - check your connection."
+                             : "Couldn't reach that table - check the code and your connection.");
+                return;
+            }
+
+            switch (_phase)
+            {
+                case Phase.Services: StepServices(); break;
+                case Phase.SignIn:   StepSignIn();   break;
+                case Phase.Allocate: StepAllocate(); break;
+                case Phase.JoinCode: StepJoinCode(); break;
+                case Phase.Dial:     StepDial();     break;
+                case Phase.Bind:     StepBind();     break;
+            }
+        }
+
+        void StepServices()
+        {
+            if (_servicesTask == null)
+            {
+                if (UnityServices.State == ServicesInitializationState.Initialized)
                 {
-                    _serverConns.Add(c);
-                    var peer = new RelayPeer(this, c);
-                    _peers[c.GetHashCode()] = peer;
-                    if (OnPeerConnected != null) OnPeerConnected(peer);
+                    Advance(Phase.SignIn);
+                    return;
                 }
-                for (int i = _serverConns.Count - 1; i >= 0; i--)
-                    PumpConnection(_serverConns[i], ref i);
+                try { _servicesTask = UnityServices.InitializeAsync(); }
+                catch (Exception e) { FailNoProject(e); return; }
+                return;
+            }
+            if (!_servicesTask.IsCompleted) return;
+            if (_servicesTask.IsFaulted) { FailNoProject(_servicesTask.Exception); return; }
+            _servicesTask = null;
+            Advance(Phase.SignIn);
+        }
+
+        void StepSignIn()
+        {
+            // An anonymous sign-in is enough: the relay only needs to know that the caller is
+            // a caller. Nobody is asked to make an account to play a dreidel game.
+            if (AuthenticationService.Instance.IsSignedIn)
+            {
+                Advance(_asHost ? Phase.Allocate : Phase.Dial);
+                return;
+            }
+            if (_signInTask == null)
+            {
+                try { _signInTask = AuthenticationService.Instance.SignInAnonymouslyAsync(); }
+                catch (Exception e) { FailService(e); return; }
+                return;
+            }
+            if (!_signInTask.IsCompleted) return;
+            if (_signInTask.IsFaulted) { FailService(_signInTask.Exception); return; }
+            _signInTask = null;
+            Advance(_asHost ? Phase.Allocate : Phase.Dial);
+        }
+
+        void StepAllocate()
+        {
+            if (_allocTask == null)
+            {
+                try { _allocTask = RelayService.Instance.CreateAllocationAsync(MaxGuests); }
+                catch (Exception e) { FailService(e); return; }
+                return;
+            }
+            if (!_allocTask.IsCompleted) return;
+            if (_allocTask.IsFaulted) { FailService(_allocTask.Exception); return; }
+            Advance(Phase.JoinCode);
+        }
+
+        void StepJoinCode()
+        {
+            if (_codeTask == null)
+            {
+                try { _codeTask = RelayService.Instance.GetJoinCodeAsync(_allocTask.Result.AllocationId); }
+                catch (Exception e) { FailService(e); return; }
+                return;
+            }
+            if (!_codeTask.IsCompleted) return;
+            if (_codeTask.IsFaulted) { FailService(_codeTask.Exception); return; }
+
+            _joinCode = _codeTask.Result;
+            var data = new RelayServerData(_allocTask.Result, "udp");
+            if (!CreateDriver(ref data)) return;
+            Advance(Phase.Bind);
+        }
+
+        void StepDial()
+        {
+            if (_joinTask == null)
+            {
+                if (string.IsNullOrEmpty(_joinCode)) { Fail("That code doesn't look right."); return; }
+                try { _joinTask = RelayService.Instance.JoinAllocationAsync(_joinCode); }
+                catch (Exception e) { FailService(e); return; }
+                return;
+            }
+            if (!_joinTask.IsCompleted) return;
+            if (_joinTask.IsFaulted) { Fail("No online table with that code."); return; }
+
+            var data = new RelayServerData(_joinTask.Result, "udp");
+            if (!CreateDriver(ref data)) return;
+            Advance(Phase.Bind);
+        }
+
+        bool CreateDriver(ref RelayServerData data)
+        {
+            var settings = new NetworkSettings();
+            settings.WithRelayParameters(ref data);
+
+            // A full table's STATE_UPDATE is comfortably over a single datagram, and every
+            // message the game sends has to arrive and arrive in order - a dropped turn
+            // change would desync the table - so the traffic goes down a fragmenting,
+            // reliable, sequenced pipeline rather than the default unreliable one.
+            settings.WithFragmentationStageParameters(payloadCapacity: 16 * 1024);
+            settings.WithReliableStageParameters(windowSize: 32);
+
+            _driver = NetworkDriver.Create(settings);
+            _pipeline = _driver.CreatePipeline(typeof(FragmentationPipelineStage),
+                                               typeof(ReliableSequencedPipelineStage));
+
+            if (_driver.Bind(NetworkEndPoint.AnyIpv4) != 0)
+            {
+                Fail("Couldn't start the connection.");
+                return false;
+            }
+            return true;
+        }
+
+        void StepBind()
+        {
+            // Binding against a relay is a round trip, not a local call: the driver isn't
+            // Bound until the relay has answered, so we pump it until it is.
+            _driver.ScheduleUpdate().Complete();
+            if (!_driver.Bound) return;
+
+            if (_asHost)
+            {
+                _driver.Listen();
+                IsReady = true;
+                Advance(Phase.Live);
+                if (OnReady != null) OnReady();
             }
             else
             {
-                if (!_clientConn.IsCreated) return;
+                _clientConn = _driver.Connect();
+                Advance(Phase.Live);      // ready is reported on the Connect event, not here
+            }
+        }
+
+        // ---------------------------------------------------------------
+        //  the live half
+        // ---------------------------------------------------------------
+        void StepNetwork()
+        {
+            if (_phase != Phase.Live || !_driver.IsCreated) return;
+            _driver.ScheduleUpdate().Complete();
+
+            if (_asHost) PumpHost();
+            else PumpClient();
+        }
+
+        void PumpHost()
+        {
+            NetworkConnection c;
+            while ((c = _driver.Accept()) != default(NetworkConnection))
+            {
+                _serverConns.Add(c);
+                var peer = new RelayPeer(this, c);
+                _peers[c.GetHashCode()] = peer;
+                if (OnPeerConnected != null) OnPeerConnected(peer);
+            }
+
+            for (int i = _serverConns.Count - 1; i >= 0; i--)
+            {
+                var conn = _serverConns[i];
                 DataStreamReader stream;
                 NetworkEvent.Type ev;
-                while ((ev = _driver.PopEventForConnection(_clientConn, out stream)) != NetworkEvent.Type.Empty)
+                bool closed = false;
+
+                while (!closed &&
+                       (ev = _driver.PopEventForConnection(conn, out stream)) != NetworkEvent.Type.Empty)
                 {
-                    if (ev == NetworkEvent.Type.Connect)
+                    if (ev == NetworkEvent.Type.Data)
                     {
-                        _hostPeer = new RelayPeer(this, _clientConn) { IsHostLink = true };
-                        IsReady = true;
-                        if (OnReady != null) OnReady();
-                    }
-                    else if (ev == NetworkEvent.Type.Data)
-                    {
-                        var json = ReadString(ref stream);
-                        if (OnMessage != null) OnMessage(null, json);
+                        RelayPeer p;
+                        if (_peers.TryGetValue(conn.GetHashCode(), out p) && OnMessage != null)
+                            OnMessage(p, ReadString(ref stream));
                     }
                     else if (ev == NetworkEvent.Type.Disconnect)
                     {
-                        _clientConn = default(NetworkConnection);
-                        IsReady = false;
-                        if (OnHostLost != null) OnHostLost();
+                        closed = true;
                     }
+                }
+
+                if (closed)
+                {
+                    RelayPeer p;
+                    if (_peers.TryGetValue(conn.GetHashCode(), out p))
+                    {
+                        p.MarkClosed();
+                        _peers.Remove(conn.GetHashCode());
+                        if (OnPeerDisconnected != null) OnPeerDisconnected(p);
+                    }
+                    _serverConns.RemoveAt(i);
                 }
             }
         }
 
-        void PumpConnection(NetworkConnection c, ref int index)
+        void PumpClient()
         {
+            if (!_clientConn.IsCreated) return;
+
             DataStreamReader stream;
             NetworkEvent.Type ev;
-            while ((ev = _driver.PopEventForConnection(c, out stream)) != NetworkEvent.Type.Empty)
+            while ((ev = _driver.PopEventForConnection(_clientConn, out stream)) != NetworkEvent.Type.Empty)
             {
-                if (ev == NetworkEvent.Type.Data)
+                if (ev == NetworkEvent.Type.Connect)
                 {
-                    RelayPeer p;
-                    if (_peers.TryGetValue(c.GetHashCode(), out p) && OnMessage != null)
-                        OnMessage(p, ReadString(ref stream));
+                    _hostPeer = new RelayPeer(this, _clientConn);
+                    IsReady = true;
+                    if (OnReady != null) OnReady();
+                }
+                else if (ev == NetworkEvent.Type.Data)
+                {
+                    if (OnMessage != null) OnMessage(null, ReadString(ref stream));
                 }
                 else if (ev == NetworkEvent.Type.Disconnect)
                 {
-                    RelayPeer p;
-                    if (_peers.TryGetValue(c.GetHashCode(), out p))
-                    {
-                        p.MarkClosed();
-                        _peers.Remove(c.GetHashCode());
-                        if (OnPeerDisconnected != null) OnPeerDisconnected(p);
-                    }
-                    _serverConns.RemoveAt(index);
-                    index--;
+                    _clientConn = default(NetworkConnection);
+                    if (_hostPeer != null) _hostPeer.MarkClosed();
+
+                    // A disconnect before we ever connected is a dial that failed, which the
+                    // lobby must hear as an error; after that it is the host going quiet,
+                    // which starts the reconnect flow instead.
+                    bool wasUp = IsReady;
+                    IsReady = false;
+                    if (wasUp) { if (OnHostLost != null) OnHostLost(); }
+                    else Fail("No online table with that code.");
                     return;
                 }
             }
         }
 
+        // ---------------------------------------------------------------
+        //  framing - a ushort length then the UTF-8 body, same shape as LAN
+        // ---------------------------------------------------------------
+        internal void SendTo(NetworkConnection c, string json)
+        {
+            if (_phase != Phase.Live || !_driver.IsCreated || !c.IsCreated) return;
+
+            var bytes = Encoding.UTF8.GetBytes(json);
+            if (bytes.Length > ushort.MaxValue) return;
+
+            DataStreamWriter writer;
+            if (_driver.BeginSend(_pipeline, c, out writer) != 0) return;
+            writer.WriteUShort((ushort)bytes.Length);
+            for (int i = 0; i < bytes.Length; i++) writer.WriteByte(bytes[i]);
+            _driver.EndSend(writer);
+        }
+
         static string ReadString(ref DataStreamReader stream)
         {
             int len = stream.ReadUShort();
+            if (len <= 0 || len > stream.Length) return "";
             var bytes = new byte[len];
             for (int i = 0; i < len; i++) bytes[i] = stream.ReadByte();
             return Encoding.UTF8.GetString(bytes);
         }
 
-        internal void SendTo(NetworkConnection c, string json)
-        {
-            if (!_driver.IsCreated || !c.IsCreated) return;
-            var bytes = Encoding.UTF8.GetBytes(json);
-            DataStreamWriter writer;
-            if (_driver.BeginSend(c, out writer) != 0) return;
-            writer.WriteUShort((ushort)bytes.Length);
-            foreach (var b in bytes) writer.WriteByte(b);
-            _driver.EndSend(writer);
-        }
-
+        // ---------------------------------------------------------------
         public void Shutdown()
         {
-            _running = false; IsReady = false;
-            if (_driver.IsCreated) { _driver.Dispose(); }
-            _serverConns.Clear(); _peers.Clear();
-            _hostPeer = null;
-            JoinCode = null;
-        }
+            _phase = Phase.Idle;
+            IsReady = false;
 
-        void OnDestroy() { Shutdown(); }
+            foreach (var p in _peers.Values) p.MarkClosed();
+            _peers.Clear();
+            _serverConns.Clear();
+            if (_hostPeer != null) { _hostPeer.MarkClosed(); _hostPeer = null; }
+
+            if (_driver.IsCreated) _driver.Dispose();
+            _driver = default(NetworkDriver);
+            _clientConn = default(NetworkConnection);
+
+            _servicesTask = null; _signInTask = null;
+            _allocTask = null; _codeTask = null; _joinTask = null;
+            _joinCode = null;
+        }
 
         void Fail(string why)
         {
             IsReady = false;
+            _phase = Phase.Dead;
+            if (_driver.IsCreated) _driver.Dispose();
+            _driver = default(NetworkDriver);
             if (OnError != null) OnError(why);
+        }
+
+        /// <summary>
+        /// The one failure worth naming precisely: the project has no Unity project id, so
+        /// Relay was never going to work. Telling someone to "check their connection" when the
+        /// build simply isn't linked would send them hunting in the wrong place.
+        /// </summary>
+        void FailNoProject(Exception e)
+        {
+            Debug.LogWarning("[Relay] services init failed: " + e);
+            Fail("Online play isn't set up for this build. Same Wi-Fi still works.");
+        }
+
+        void FailService(Exception e)
+        {
+            Debug.LogWarning("[Relay] " + e);
+            Fail(_asHost ? "Couldn't open an online table. Try again, or use Same Wi-Fi."
+                         : "Couldn't reach that table. Check the code, or use Same Wi-Fi.");
         }
     }
 
+    /// <summary>One relay connection, wearing the same face a LAN socket wears.</summary>
     public class RelayPeer : INetPeer
     {
         public string Id { get; private set; }
         public bool IsOpen { get; private set; }
-        public bool IsHostLink;
 
         readonly RelayTransport _owner;
         readonly NetworkConnection _conn;
@@ -266,4 +454,3 @@ namespace DreidelRoyale.Net
         internal void MarkClosed() { IsOpen = false; }
     }
 }
-#endif

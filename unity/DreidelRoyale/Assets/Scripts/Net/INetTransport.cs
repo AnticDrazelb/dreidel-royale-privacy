@@ -27,8 +27,11 @@ namespace DreidelRoyale.Net
     {
         string Name { get; }
 
-        /// <summary>Open a room under `code`. Reports failure through OnError.</summary>
-        void Host(string code);
+        /// <summary>
+        /// Open a room. `preferredCode` is a hint a LAN table can honour; a relay ignores it
+        /// and mints its own. Reports failure through OnError.
+        /// </summary>
+        void Host(string preferredCode);
 
         /// <summary>Dial the room named by `code`.</summary>
         void Join(string code);
@@ -58,6 +61,16 @@ namespace DreidelRoyale.Net
 
         /// <summary>True once hosting or joined and usable.</summary>
         bool IsReady { get; }
+
+        /// <summary>
+        /// The code players actually type. A LAN table mints its own four letters; a relay
+        /// hands one back with the allocation, so it is only known once the room is open —
+        /// which is why the lobby reads this rather than being told a code up front.
+        /// </summary>
+        string RoomCode { get; }
+
+        /// <summary>Whether this transport reaches beyond the local network.</summary>
+        bool IsOnline { get; }
 
         /// <summary>The client's own link to the host, or null when hosting.</summary>
         INetPeer HostLink { get; }

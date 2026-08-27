@@ -112,10 +112,13 @@ namespace DreidelRoyale.Net
                 Ante = GC.AnteAmount, BaseAnte = GC.AnteAmount,
                 Rules = GC.RulesMode, Env = GC.HostEnvChoice
             };
-            RoomCodeText = RoomCode.Generate();
+            // A LAN table can be told its code up front; a relay mints one and hands it back
+            // with the allocation, so online the lobby opens code-less and fills the code in
+            // on ready. Same screen either way - it just says "...." for a second longer.
+            RoomCodeText = transport.IsOnline ? "" : RoomCode.Generate();
             _joinedCode = RoomCodeText;
 
-            TransportFactory = () => new LanTransport();
+            RememberTransportKind(transport);
             Attach(transport);
             Screens.ShowLobby(RoomCodeText, true, "Opening the table...");
             transport.Host(RoomCodeText);
@@ -126,6 +129,13 @@ namespace DreidelRoyale.Net
             if (_takeoverInProgress) { MigrateToHost(); return; }
             if (IsHost)
             {
+                // Whatever the transport settled on is the truth - the relay's code, or the
+                // four letters the LAN table was handed and kept.
+                if (!string.IsNullOrEmpty(Transport.RoomCode))
+                {
+                    RoomCodeText = Transport.RoomCode;
+                    _joinedCode = RoomCodeText;
+                }
                 GC.G.Players.Add(new Player("HOST", MyName, Consts.StartCoins) { Skin = GC.MySkinChoice });
                 Screens.SetLobbyStatus("ONLINE", true);
                 Screens.ShowLobby(RoomCodeText, true, "Share the code - friends join from their phones");
@@ -244,7 +254,7 @@ namespace DreidelRoyale.Net
             GC.IsLocalGame = false;
             _joinedCode = RoomCode.Clean(code);
             RoomCodeText = _joinedCode;
-            TransportFactory = () => new LanTransport();
+            RememberTransportKind(transport);
             Attach(transport);
             transport.Join(_joinedCode);
         }
@@ -689,7 +699,13 @@ namespace DreidelRoyale.Net
             // there is always a grace window before falling back to the menu, rather than
             // ending the game on the spot.
             int others = GC.G.Players.Count(p => p.Id != "HOST" && !p.Forfeited);
-            bool canMigrate = others > 1 && !IsObserver;
+
+            // Online, the chair cannot move. A relay join code belongs to the host's own
+            // allocation, so a new host would open a room under a code nobody else has any
+            // way of learning - and the link that would have carried it is the one that just
+            // died. On Wi-Fi the code is ours to re-mint, so migration works there.
+            bool relayed = Transport != null && Transport.IsOnline;
+            bool canMigrate = others > 1 && !IsObserver && !relayed;
 
             _reconnecting = true;
             _reconnectTries = 0;
@@ -698,7 +714,9 @@ namespace DreidelRoyale.Net
 
             Screens.ShowReconnect(
                 deliberate ? "Host Left" : "Host Disconnected",
-                !canMigrate ? "Waiting for the host to come back..."
+                relayed ? (deliberate ? "The host closed the table."
+                                      : "Lost the host - trying to get back in...")
+                    : !canMigrate ? "Waiting for the host to come back..."
                     : deliberate ? "The host left - choosing a new host..."
                     : "Connection to the host lost - reconnecting... a new host will be chosen shortly.",
                 canMigrate);
@@ -884,6 +902,17 @@ namespace DreidelRoyale.Net
         /// opened or joined, so a reconnect or a takeover never silently changes transport.
         /// </summary>
         public Func<INetTransport> TransportFactory = () => new LanTransport();
+
+        /// <summary>
+        /// Pin the factory to the kind of link that got us here. Reconnecting an online table
+        /// over LAN sockets would look for a phone that was never on this network, and the
+        /// reverse would ask the relay about a code it never issued.
+        /// </summary>
+        void RememberTransportKind(INetTransport t)
+        {
+            if (t is RelayTransport) TransportFactory = () => new RelayTransport();
+            else TransportFactory = () => new LanTransport();
+        }
 
         INetTransport NewTransportLikeCurrent() { return TransportFactory(); }
 

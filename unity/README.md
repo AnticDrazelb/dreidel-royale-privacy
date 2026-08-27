@@ -8,6 +8,10 @@ and sound design are quoted from the original rather than re-invented.
 
 1. Open `unity/DreidelRoyale` with Unity **2021.3 LTS** or newer (built-in render pipeline).
 2. Open `Assets/Scenes/Main.unity` and press Play.
+3. For **Online** play only: link a project under *Edit → Project Settings → Services* and
+   press **Create/Link**. It is free, it takes a minute, and Unity Relay reads the project id
+   out of the build — without one, Online fails at the first step. *Same Wi-Fi* play,
+   single-player and AR all work with no account at all.
 
 The scene holds exactly one object, `Bootstrap`. Everything else — camera, lights, table,
 dreidel, audio graph and UI — is constructed at runtime, because that is how the web build
@@ -35,7 +39,7 @@ the code describing it.
 | `Audio/MusicEngine.cs` | the generative D freygish soundtrack |
 | `UI/` | the screens, the HUD, and the screen-space effect layers |
 | `AR/` | session, placement, gestures, and the world-unit corrections |
-| `Net/` | the wire protocol, the transport interface, LAN and Relay, chat |
+| `Net/` | the wire protocol, the transport interface, Relay and LAN, chat |
 
 ## What carried over exactly
 
@@ -94,12 +98,33 @@ The protocol is transport-agnostic — LAN sockets and a relay differ in how byt
 other phone, not in what the table does with them — so `INetTransport` is all the game layer
 ever sees.
 
-**What ships: local Wi-Fi.** TCP with a length-prefixed frame, and UDP broadcast to turn a
-four-letter room code into an address. No account, no service, no key, no quota, nothing that
-can expire or be rate-limited. This is also the case the game is actually for — the original's
-own join screen says *best played on Wi-Fi*, because a dreidel game is a room full of people.
-On a network that blocks broadcast (guest Wi-Fi, AP isolation), a guest can type the host's IP
-instead of the code; the lobby shows that address rather than leaving anyone to hunt for it.
+Both routes ship enabled. The name screen carries an **Online / Same Wi-Fi** picker, remembered
+between runs, and that choice is the only line in the game that knows which transport it is —
+`NetUI.MakeTransport()`. Everything downstream reads `INetTransport`.
+
+**Online** is Unity Relay (`Net/RelayTransport.cs`). The host asks for an allocation and gets a
+join code back; guests dial that code and the relay carries the packets. Nobody opens a port,
+neither phone learns the other's address, and it works over mobile data — which is what PeerJS
+gave the web build. Traffic goes down a fragmenting, reliable, sequenced pipeline rather than
+UTP's default unreliable one: a full table's `STATE_UPDATE` exceeds one datagram, and a dropped
+turn change would desync the table.
+
+It needs a **free Unity project linked** under *Edit → Project Settings → Services* — Relay
+reads the project id out of the build. `Dreidel Royale → Validate build settings` checks for
+one, and without it the game says so in a line a player can act on rather than failing silently.
+There is no zero-setup route across the internet: every route needs a relay, and every free
+relay needs an account with somebody.
+
+**Same Wi-Fi** is TCP with a length-prefixed frame, and UDP broadcast to turn a four-letter room
+code into an address. No account, no service, no key, no quota, nothing that can expire or be
+rate-limited — and it is the case the game is actually for, since the original's own join screen
+says *best played on Wi-Fi*, because a dreidel game is a room full of people. On a network that
+blocks broadcast (guest Wi-Fi, AP isolation), a guest can type the host's IP instead of the
+code; the lobby shows that address rather than leaving anyone to hunt for it. Typing an address
+picks this route whatever the switch says — it cannot mean anything else.
+
+**Quick Match is Wi-Fi only.** It asks the local network who is open, and only a local table can
+answer that, so the picker is hidden on that path.
 
 Everything that makes a party game survive a real room came across whole: seats are **held**
 when someone drops rather than deleted, and rebound by a token minted at first join — a name
@@ -109,19 +134,17 @@ mobile radio can leave a socket looking open for the best part of a minute while
 on a zombie. If the host vanishes, the table waits, then elects a new one — staggered by join
 order so two claims don't race — and the old host may return only as an observer.
 
-**Internet play** is Unity Relay, implemented in `Net/RelayTransport.cs` behind
-`DREIDEL_RELAY`. It is off by default because it needs packages this project does not ship and
-a free Unity project of your own. To turn it on:
+**The chair cannot move online.** A relay join code belongs to the host's own allocation, so a
+new host would open a room under a code nobody else has any way of learning — and the link that
+would have carried it is the one that just died. Host migration is therefore gated to Wi-Fi
+tables, where the code is ours to re-mint. Reconnecting to the *same* online host works fine:
+the join code stays valid as long as the allocation is alive.
 
-1. Add `com.unity.services.core`, `com.unity.services.authentication`,
-   `com.unity.services.relay` and `com.unity.transport` in Package Manager.
-2. Link a Unity project under **Edit → Project Settings → Services**.
-3. Add `DREIDEL_RELAY` to **Player → Scripting Define Symbols**, and hand `NetManager` a
-   `RelayTransport` in place of `LanTransport`.
-
-There is no zero-setup option for internet play: every route across the internet needs a
-relay, and every free relay needs an account with somebody. LAN is the one that needs nothing,
-which is why it is the one that ships enabled.
+`Net/RelayTransport.cs` is a plain class, not a MonoBehaviour: `NetManager` already calls
+`Poll()` once a frame, and every asynchronous step — services init, anonymous sign-in,
+allocation, join code, bind — is advanced from there as a small state machine under one 25s
+clock. That keeps it interchangeable with `LanTransport` in `TransportFactory`, and keeps all
+Unity API contact on the main thread without a lock.
 
 ## What is not in this port
 

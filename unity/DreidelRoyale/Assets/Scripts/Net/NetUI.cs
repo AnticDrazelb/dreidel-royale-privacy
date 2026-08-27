@@ -31,6 +31,15 @@ namespace DreidelRoyale.Net
         string _pendingMode;     // "HOST", "JOIN" or "QUICK" - what the name screen leads into
         Text _quickStatus;
 
+        Transform _modeRow;
+        Text _modeNote, _codeTag, _codeHint;
+
+        /// <summary>
+        /// Online (relay) or same-Wi-Fi (sockets). Remembered between runs, because whichever
+        /// one works for a given group of friends tends to keep working for them.
+        /// </summary>
+        bool _online = true;
+
         // ---------------------------------------------------------------
         public void Build(RectTransform root)
         {
@@ -49,16 +58,18 @@ namespace DreidelRoyale.Net
             var tag = UIKit.Label(c, "Pick your table name", 14, Theme.Sub);
             UIKit.SetSize(tag, 340, 24);
 
-            // Practical advice rather than a warning: a phone that changes address mid-game
-            // drops the link, and mobile data does that routinely.
-            var note = UIKit.Panel(c, new Color(Theme.Gold.r, Theme.Gold.g, Theme.Gold.b, 0.08f), 12f, "wifi-note");
-            UIKit.Rect(note.gameObject).sizeDelta = new Vector2(340, 52);
-            var noteT = UIKit.Label(note.transform,
-                "Everyone needs to be on the <color=#f2c14e><b>same Wi-Fi</b></color>. "
-                + "Mobile data can't find the table.", 12, Theme.Sub);
-            UIKit.Stretch(noteT.gameObject, 12f);
-
             _nameInput = UIKit.Input(c, "YOUR NAME", 10);
+
+            UIKit.SectionLabel(c, "How you're connecting");
+            _modeRow = UIKit.Row(c).transform;
+
+            // The note under the picker is the whole of the explanation either mode needs,
+            // and it is practical rather than a warning: a phone that changes address
+            // mid-game drops a Wi-Fi table, and mobile data does that routinely.
+            var note = UIKit.Panel(c, new Color(Theme.Gold.r, Theme.Gold.g, Theme.Gold.b, 0.08f), 12f, "mode-note");
+            UIKit.Rect(note.gameObject).sizeDelta = new Vector2(340, 52);
+            _modeNote = UIKit.Label(note.transform, "", 12, Theme.Sub);
+            UIKit.Stretch(_modeNote.gameObject, 12f);
             _nameInput.text = Store.Get("drdl-name") ?? "";
 
             UIKit.SectionLabel(c, "Your dreidel - earned through play");
@@ -75,7 +86,8 @@ namespace DreidelRoyale.Net
         {
             var h = UIKit.Label(c, "Room Code", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 46);
-            var tag = UIKit.Label(c, "Ask the host for their 4 letters", 14, Theme.Sub);
+            _codeTag = UIKit.Label(c, "Ask the host for their room code", 14, Theme.Sub);
+            var tag = _codeTag;
             UIKit.SetSize(tag, 340, 24);
 
             _codeInput = UIKit.Input(c, "CODE", 15);
@@ -83,23 +95,28 @@ namespace DreidelRoyale.Net
             UIKit.Btn(c, "Connect", UIKit.BtnKind.Primary, () =>
             {
                 var code = RoomCode.Clean(_codeInput.text);
-                if (!RoomCode.IsValid(code) && !LooksLikeAddress(code))
+                if (!RoomCode.IsValid(code) && !(!_online && LooksLikeAddress(code)))
                 {
-                    _joinStatus.text = "Code is 4 letters";
+                    _joinStatus.text = _online ? "That code doesn't look right"
+                                               : "Code is 4 letters";
                     return;
                 }
                 Sfx.Play("tick");
-                _joinStatus.text = "Looking for the table...";
-                Net.JoinGame(new LanTransport(), code, MyName());
+                _joinStatus.text = _online ? "Connecting..." : "Looking for the table...";
+
+                // An IP address is a Wi-Fi-only escape hatch, so typing one picks that route
+                // regardless of the switch - it can't mean anything else.
+                Net.JoinGame(LooksLikeAddress(code) ? new LanTransport() : MakeTransport(),
+                             code, MyName());
             });
 
             _joinStatus = UIKit.Label(c, "", 12, Theme.Danger);
             UIKit.SetSize(_joinStatus, 340, 34);
 
-            var hint = UIKit.Label(c,
+            _codeHint = UIKit.Label(c,
                 "On a network that blocks discovery, type the host's IP address instead of the code.",
                 11, new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.75f));
-            UIKit.SetSize(hint, 340, 30);
+            UIKit.SetSize(_codeHint, 340, 30);
 
             UIKit.Btn(c, "Back", UIKit.BtnKind.Ghost, () => UI.Show("landing"));
         }
@@ -274,8 +291,56 @@ namespace DreidelRoyale.Net
         public void BeginJoin() { _pendingMode = "JOIN"; UI.Show("net-name"); }
         public void BeginQuickMatch() { _pendingMode = "QUICK"; UI.Show("net-name"); }
 
+        /// <summary>
+        /// The one place a mode becomes a transport. Everything downstream - lobby, reconnect,
+        /// takeover - reads INetTransport, so this is the only line that has to know.
+        /// </summary>
+        INetTransport MakeTransport()
+        {
+            return _online ? (INetTransport)new RelayTransport() : new LanTransport();
+        }
+
+        void RenderModePicker()
+        {
+            if (_modeRow == null) return;
+            UIKit.Clear(_modeRow);
+            UIKit.Chip(_modeRow, "Online", _online, () =>
+            {
+                Sfx.Play("tick"); SetMode(true);
+            }, 160f, 46f, 15);
+            UIKit.Chip(_modeRow, "Same Wi-Fi", !_online, () =>
+            {
+                Sfx.Play("tick"); SetMode(false);
+            }, 160f, 46f, 15);
+
+            if (_modeNote != null)
+                _modeNote.text = _online
+                    ? "Play with anyone, <color=#f2c14e><b>anywhere</b></color>. "
+                      + "Works on mobile data."
+                    : "Everyone needs to be on the <color=#f2c14e><b>same Wi-Fi</b></color>. "
+                      + "No internet needed.";
+        }
+
+        void SetMode(bool online)
+        {
+            _online = online;
+            Store.Set("drdl-net-online", online ? "1" : "0");
+            RenderModePicker();
+        }
+
         public void OnNameScreenShown()
         {
+            var saved = Store.Get("drdl-net-online");
+            if (!string.IsNullOrEmpty(saved)) _online = saved == "1";
+
+            // Quick Match asks the local network who is open, and only a Wi-Fi table can
+            // answer that, so it has no choice to offer.
+            bool pickable = _pendingMode != "QUICK";
+            if (_modeRow != null) _modeRow.gameObject.SetActive(pickable);
+            if (_modeNote != null && _modeNote.transform.parent != null)
+                _modeNote.transform.parent.gameObject.SetActive(pickable);
+            if (pickable) RenderModePicker();
+
             Pickers.RenderSkin(_nameSkinPicker, GC.MySkinChoice, id =>
             {
                 GC.MySkinChoice = id;
@@ -284,6 +349,19 @@ namespace DreidelRoyale.Net
                 if (Net.Active && !Net.IsHost) Net.SendSkin(id);
                 OnNameScreenShown();
             });
+        }
+
+        /// <summary>The code screen inherits the mode chosen a screen earlier, so it says so.</summary>
+        public void OnCodeScreenShown()
+        {
+            if (_codeTag != null)
+                _codeTag.text = _online ? "Ask the host for their room code"
+                                        : "Ask the host for their 4 letters";
+            if (_codeHint != null)
+                _codeHint.text = _online
+                    ? "You can be anywhere - the host doesn't need to be on your Wi-Fi."
+                    : "On a network that blocks discovery, type the host's IP address instead of the code.";
+            if (_joinStatus != null) _joinStatus.text = "";
         }
 
         string MyName()
@@ -297,7 +375,7 @@ namespace DreidelRoyale.Net
             var n = MyName();
             Store.Set("drdl-name", n);
             Sfx.Play("tick");
-            if (_pendingMode == "HOST") Net.HostGame(new LanTransport(), n);
+            if (_pendingMode == "HOST") Net.HostGame(MakeTransport(), n);
             else if (_pendingMode == "QUICK")
             {
                 UI.Show("net-quick");
@@ -322,12 +400,20 @@ namespace DreidelRoyale.Net
             }
             if (_lobbyHint != null)
             {
-                // A host on a network that blocks broadcast can still be reached by address,
-                // so the address is shown rather than left for someone to go hunting for.
-                var addrs = isHost ? LanTransport.LocalAddresses() : new List<string>();
-                _lobbyHint.text = addrs.Count > 0
-                    ? "Same Wi-Fi as you. If the code won't find it, they can type " + addrs[0]
-                    : "Everyone needs to be on the same Wi-Fi";
+                if (IsOnlineTable())
+                {
+                    _lobbyHint.text = "Anyone can join from anywhere with this code";
+                }
+                else
+                {
+                    // A host on a network that blocks broadcast can still be reached by
+                    // address, so the address is shown rather than left for someone to go
+                    // hunting for.
+                    var addrs = isHost ? LanTransport.LocalAddresses() : new List<string>();
+                    _lobbyHint.text = addrs.Count > 0
+                        ? "Same Wi-Fi as you. If the code won't find it, they can type " + addrs[0]
+                        : "Everyone needs to be on the same Wi-Fi";
+                }
             }
             RefreshLobby();
         }
@@ -341,15 +427,28 @@ namespace DreidelRoyale.Net
         {
             Sfx.Play("tick");
             var code = Net.RoomCodeText ?? "";
-            var addrs = LanTransport.LocalAddresses();
             var body = "Join my Dreidel Royale table - the code is " + code + "."
-                     + "\n\nOpen Dreidel Royale, tap Join, and enter " + code + ". "
-                     + "We need to be on the same Wi-Fi.";
-            if (addrs.Count > 0)
-                body += "\n\nIf the code doesn't find it, enter this instead: " + addrs[0];
+                     + "\n\nOpen Dreidel Royale, tap Join, and enter " + code + ".";
+
+            if (IsOnlineTable())
+            {
+                body += " You can be anywhere.";
+            }
+            else
+            {
+                body += " We need to be on the same Wi-Fi.";
+                var addrs = LanTransport.LocalAddresses();
+                if (addrs.Count > 0)
+                    body += "\n\nIf the code doesn't find it, enter this instead: " + addrs[0];
+            }
 
             if (!NativeShare.Share("Dreidel Royale", body))
                 UI.Toast("Invite copied to the clipboard");
+        }
+
+        bool IsOnlineTable()
+        {
+            return Net != null && Net.Transport != null && Net.Transport.IsOnline;
         }
 
         public void SetLobbyStatus(string text, bool good)
@@ -361,8 +460,21 @@ namespace DreidelRoyale.Net
 
         public void JoinFailed(string why)
         {
-            if (_joinStatus != null) _joinStatus.text = why;
+            // Show first, then write the reason: the screen's own on-shown pass clears the
+            // status line, so setting it beforehand would wipe the one thing worth reading.
+            // A host that never opened is sent back to the name screen rather than to the
+            // join screen, which would be asking them for a code they were never given.
+            if (Net != null && Net.IsHost)
+            {
+                Net.LeaveEverything();
+                GC.IsLocalGame = true;
+                _pendingMode = "HOST";
+                UI.Show("net-name");
+                return;                      // the caller toasts the reason
+            }
+
             if (UI.Current == "net-lobby") UI.Show("net-code");
+            if (_joinStatus != null) _joinStatus.text = why;
         }
 
         public void RefreshLobby()

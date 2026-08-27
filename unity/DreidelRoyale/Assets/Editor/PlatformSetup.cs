@@ -193,6 +193,23 @@ namespace DreidelRoyale.EditorTools
         /// Reports the settings whose failure mode is silence — a build that runs perfectly and
         /// just quietly has no AR, or finds no tables on the network.
         /// </summary>
+        /// <summary>
+        /// PlayerSettings.cloudProjectId has moved between Unity versions and is obsolete in
+        /// some, so it is read reflectively: a missing property should read as "can't tell",
+        /// not stop the whole check from compiling.
+        /// </summary>
+        static string CloudProjectId()
+        {
+            try
+            {
+                var prop = typeof(PlayerSettings).GetProperty("cloudProjectId",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                if (prop == null) return "unknown";
+                return prop.GetValue(null, null) as string;
+            }
+            catch { return "unknown"; }
+        }
+
         [MenuItem("Dreidel Royale/Validate build settings")]
         public static void Validate()
         {
@@ -215,6 +232,14 @@ namespace DreidelRoyale.EditorTools
 
             if (PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android) != ScriptingImplementation.IL2CPP)
                 problems.Add("Android is on Mono. Play requires a 64-bit binary, which needs IL2CPP.");
+
+            // Relay reads the project id out of the build. Without a linked project, Online
+            // fails at the first step on a real phone and nowhere else - which is exactly the
+            // kind of thing that gets discovered after a store submission rather than before.
+            if (string.IsNullOrEmpty(CloudProjectId()))
+                problems.Add("No Unity project is linked, so Online play will fail. "
+                             + "Link one under Edit > Project Settings > Services (it is free). "
+                             + "Same Wi-Fi play works without it.");
 
             if (problems.Count == 0)
                 Debug.Log("[Dreidel Royale] Build settings look right for Android and iOS.");

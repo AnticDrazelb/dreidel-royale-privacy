@@ -201,7 +201,7 @@ namespace UnityEngine
         public static Vector3 insideUnitSphere { get { return Vector3.zero; } }
     }
     public static class Time {
-        public static float time, deltaTime, unscaledTime, unscaledDeltaTime, fixedDeltaTime, timeScale;
+        public static float time, deltaTime, unscaledTime, unscaledDeltaTime, fixedDeltaTime, timeScale, realtimeSinceStartup;
     }
     public static class Screen {
         public static int width, height;

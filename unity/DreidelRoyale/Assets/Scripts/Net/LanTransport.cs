@@ -35,6 +35,8 @@ namespace DreidelRoyale.Net
         const string RoomGreetingPrefix = "#ROOM:";
 
         public string Name { get { return "Wi-Fi"; } }
+        public bool IsOnline { get { return false; } }
+        public string RoomCode { get { return _resolvedCode ?? _code; } }
 
         public event Action OnReady;
         public event Action<INetPeer> OnPeerConnected;
@@ -75,10 +77,12 @@ namespace DreidelRoyale.Net
         // ---------------------------------------------------------------
         //  host
         // ---------------------------------------------------------------
-        public void Host(string code)
+        public void Host(string preferredCode)
         {
             Shutdown();
-            _code = RoomCode.Clean(code);
+            _code = string.IsNullOrEmpty(preferredCode) ? Net.RoomCode.Generate()
+                                                        : Net.RoomCode.Clean(preferredCode);
+            _resolvedCode = _code;
             _running = true;
 
             try
@@ -171,7 +175,7 @@ namespace DreidelRoyale.Net
         public void Join(string code)
         {
             Shutdown();
-            _code = RoomCode.Clean(code);
+            _code = Net.RoomCode.Clean(code);
             _running = true;
             _multicast = AndroidMulticastLock.Acquire();
             _discoverThread = StartThread(DiscoverAndConnect, "drdl-join");

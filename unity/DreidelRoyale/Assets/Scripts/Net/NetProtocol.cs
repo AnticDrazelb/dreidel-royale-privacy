@@ -141,10 +141,17 @@ namespace DreidelRoyale.Net
             return new string(s);
         }
 
+        /// <summary>
+        /// Loose on purpose: a LAN table mints four letters, but a relay's join code is its
+        /// own business - six alphanumerics today, and not ours to assume forever. So the
+        /// check is "could plausibly be a code" rather than a format the service never
+        /// promised us, and the network decides whether it actually names a table.
+        /// </summary>
         public static bool IsValid(string code)
         {
-            if (string.IsNullOrEmpty(code) || code.Length != 4) return false;
-            foreach (var c in code) if (c < 'A' || c > 'Z') return false;
+            if (string.IsNullOrEmpty(code) || code.Length < 4 || code.Length > 12) return false;
+            foreach (var c in code)
+                if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) return false;
             return true;
         }
 
