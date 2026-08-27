@@ -46,6 +46,19 @@ namespace DreidelRoyale.Net
         public bool IsReady { get; private set; }
         public INetPeer HostLink { get { return _hostPeer; } }
 
+        /// <summary>
+        /// Whether this table still wants strangers. Quick Match asks the network "is anyone
+        /// open?" rather than naming a code, and only a lobby with room answers.
+        /// </summary>
+        public volatile bool AcceptingPlayers = true;
+
+        /// <summary>The wildcard a Quick Match dials instead of a room code.</summary>
+        public const string AnyRoom = "*";
+
+        /// <summary>The code actually joined, which for a Quick Match is only known on arrival.</summary>
+        public string ResolvedCode { get { return _resolvedCode; } }
+        string _resolvedCode;
+
         readonly ConcurrentQueue<Action> _main = new ConcurrentQueue<Action>();
         readonly List<LanPeer> _peers = new List<LanPeer>();
 
@@ -139,8 +152,10 @@ namespace DreidelRoyale.Net
                     // "DRDL1?ABCD" -> "DRDL1!ABCD:port"
                     if (!text.StartsWith(Magic + "?")) continue;
                     var want = text.Substring(Magic.Length + 1);
-                    if (!string.Equals(want, _code, StringComparison.OrdinalIgnoreCase)) continue;
-                    var reply = Encoding.UTF8.GetBytes(Magic + "!" + _code + ":" + _port);
+                    bool wildcard = want == AnyRoom;
+                    if (wildcard && !AcceptingPlayers) continue;    // in play, or full
+                    if (!wildcard && !string.Equals(want, _code, StringComparison.OrdinalIgnoreCase)) continue;
+                    var reply = Encoding.UTF8.GetBytes(Magic + "!" + _code + ":" + _port);   // always names itself
                     udp.Send(reply, reply.Length, from);
                 }
             }
@@ -230,9 +245,15 @@ namespace DreidelRoyale.Net
                         var from = new IPEndPoint(IPAddress.Any, 0);
                         var data = udp.Receive(ref from);
                         var text = Encoding.UTF8.GetString(data);
-                        var prefix = Magic + "!" + _code + ":";
-                        if (!text.StartsWith(prefix)) continue;
-                        if (!int.TryParse(text.Substring(prefix.Length), out port)) continue;
+                        if (!text.StartsWith(Magic + "!")) continue;
+                        var body = text.Substring(Magic.Length + 1);
+                        int colon = body.LastIndexOf(':');
+                        if (colon <= 0) continue;
+                        var theirCode = body.Substring(0, colon);
+                        if (_code != AnyRoom && !string.Equals(theirCode, _code, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        if (!int.TryParse(body.Substring(colon + 1), out port)) continue;
+                        _resolvedCode = theirCode;
                         host = from.Address.ToString();
                         return true;
                     }
@@ -332,7 +353,13 @@ namespace DreidelRoyale.Net
                 if (!ReadExact(stream, body, len)) return;
 
                 var text = Encoding.UTF8.GetString(body);
-                if (text == RoomGreetingPrefix + _code) found.Set(ip, port);
+                if (!text.StartsWith(RoomGreetingPrefix)) return;
+                var theirCode = text.Substring(RoomGreetingPrefix.Length);
+                if (_code == AnyRoom || string.Equals(theirCode, _code, StringComparison.OrdinalIgnoreCase))
+                {
+                    _resolvedCode = theirCode;
+                    found.Set(ip, port);
+                }
             }
             catch (Exception) { }
             finally { if (c != null) { try { c.Close(); } catch { } } }
@@ -400,7 +427,8 @@ namespace DreidelRoyale.Net
                 // A direct-IP connection can land on the wrong table; say so rather than
                 // seating the player somewhere they did not mean to be.
                 var theirCode = json.Substring(RoomGreetingPrefix.Length);
-                if (!string.IsNullOrEmpty(_code) && !IPAddress.TryParse(_code, out _)
+                _resolvedCode = theirCode;
+                if (!string.IsNullOrEmpty(_code) && _code != AnyRoom && !IPAddress.TryParse(_code, out _)
                     && !string.Equals(theirCode, _code, StringComparison.OrdinalIgnoreCase))
                 {
                     Post(() => Fail("That table's code is " + theirCode + ", not " + _code + "."));

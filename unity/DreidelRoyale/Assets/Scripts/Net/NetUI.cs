@@ -28,7 +28,8 @@ namespace DreidelRoyale.Net
         Button _startBtn, _takeoverBtn;
         RectTransform _reconnectActions;
 
-        string _pendingMode;     // "HOST" or "JOIN" - what the name screen leads into
+        string _pendingMode;     // "HOST", "JOIN" or "QUICK" - what the name screen leads into
+        Text _quickStatus;
 
         // ---------------------------------------------------------------
         public void Build(RectTransform root)
@@ -36,6 +37,7 @@ namespace DreidelRoyale.Net
             UI.MakeScreen("net-name", BuildName);
             UI.MakeScreen("net-code", BuildCode);
             UI.MakeScreen("net-lobby", BuildLobby);
+            UI.MakeScreen("net-quick", BuildQuick);
             BuildReconnect(root);
             BuildObserverChip(root);
         }
@@ -117,6 +119,8 @@ namespace DreidelRoyale.Net
             _lobbyHint = UIKit.Label(c, "", 11, new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.8f));
             UIKit.SetSize(_lobbyHint, 340, 30);
 
+            UIKit.Btn(c, "Share Invite", UIKit.BtnKind.Ghost, ShareInvite, 180f, 42f, 14);
+
             _lobbyStatus = UIKit.Label(c, "Initialising...", 13, Theme.Sub);
             UIKit.SetSize(_lobbyStatus, 340, 24);
 
@@ -151,6 +155,39 @@ namespace DreidelRoyale.Net
                 GC.IsLocalGame = true;
                 UI.Show("landing");
             });
+        }
+
+        void BuildQuick(Transform c)
+        {
+            var h = UIKit.Label(c, "Quick Match", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
+            UIKit.SetSize(h, 360, 46);
+            _quickStatus = UIKit.Label(c, "Searching for open tables...", 14, Theme.Sub);
+            UIKit.SetSize(_quickStatus, 340, 40);
+
+            var spinner = UIKit.Node("spinner", c);
+            UIKit.Rect(spinner).sizeDelta = new Vector2(48, 48);
+            var img = spinner.AddComponent<Image>();
+            img.sprite = Theme.Ring(48, 4f);
+            img.color = Theme.Gold;
+            img.type = Image.Type.Filled;
+            img.fillMethod = Image.FillMethod.Radial360;
+            img.fillOrigin = (int)Image.Origin360.Top;
+            img.fillAmount = 0.25f;
+            img.raycastTarget = false;
+            spinner.AddComponent<Spin>();
+
+            UIKit.Spacer(c, 10f);
+            UIKit.Btn(c, "Cancel", UIKit.BtnKind.Ghost, () =>
+            {
+                Sfx.Play("tick");
+                Net.CancelQuickMatch();
+                UI.Show("landing");
+            });
+        }
+
+        public void SetQuickStatus(string text)
+        {
+            if (_quickStatus != null) _quickStatus.text = text;
         }
 
         void BuildReconnect(RectTransform root)
@@ -235,6 +272,7 @@ namespace DreidelRoyale.Net
         // ---------------------------------------------------------------
         public void BeginHost() { _pendingMode = "HOST"; UI.Show("net-name"); }
         public void BeginJoin() { _pendingMode = "JOIN"; UI.Show("net-name"); }
+        public void BeginQuickMatch() { _pendingMode = "QUICK"; UI.Show("net-name"); }
 
         public void OnNameScreenShown()
         {
@@ -260,6 +298,12 @@ namespace DreidelRoyale.Net
             Store.Set("drdl-name", n);
             Sfx.Play("tick");
             if (_pendingMode == "HOST") Net.HostGame(new LanTransport(), n);
+            else if (_pendingMode == "QUICK")
+            {
+                UI.Show("net-quick");
+                SetQuickStatus("Searching for open tables...");
+                Net.QuickMatch(n);
+            }
             else UI.Show("net-code");
         }
 
@@ -286,6 +330,26 @@ namespace DreidelRoyale.Net
                     : "Everyone needs to be on the same Wi-Fi";
             }
             RefreshLobby();
+        }
+
+        /// <summary>
+        /// The code, plus the address, because on a network that blocks discovery the address
+        /// is the thing that actually gets someone in - and it is far easier to tap a message
+        /// than to read an IP off someone else's screen.
+        /// </summary>
+        void ShareInvite()
+        {
+            Sfx.Play("tick");
+            var code = Net.RoomCodeText ?? "";
+            var addrs = LanTransport.LocalAddresses();
+            var body = "Join my Dreidel Royale table - the code is " + code + "."
+                     + "\n\nOpen Dreidel Royale, tap Join, and enter " + code + ". "
+                     + "We need to be on the same Wi-Fi.";
+            if (addrs.Count > 0)
+                body += "\n\nIf the code doesn't find it, enter this instead: " + addrs[0];
+
+            if (!NativeShare.Share("Dreidel Royale", body))
+                UI.Toast("Invite copied to the clipboard");
         }
 
         public void SetLobbyStatus(string text, bool good)

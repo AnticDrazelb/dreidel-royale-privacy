@@ -134,6 +134,13 @@ namespace DreidelRoyale.Net
             }
             else
             {
+                _quickMatching = false;
+                var lan = Transport as LanTransport;
+                if (lan != null && !string.IsNullOrEmpty(lan.ResolvedCode))
+                {
+                    _joinedCode = lan.ResolvedCode;      // a wildcard only learns the code on arrival
+                    RoomCodeText = _joinedCode;
+                }
                 _conn = Transport.HostLink;
                 StopMigrationTimers();
                 _reconnecting = false; _reconnectTries = 0;
@@ -148,6 +155,14 @@ namespace DreidelRoyale.Net
         {
             if (_takeoverInProgress) { _takeoverInProgress = false; ScheduleReconnectOrGiveUp(); return; }
             if (_reconnecting) { ScheduleReconnectOrGiveUp(); return; }
+            if (_quickMatching)
+            {
+                // Nobody was open, so become the table other people find.
+                _quickMatching = false;
+                Screens.SetQuickStatus("No open tables - starting one...");
+                HostGame(new LanTransport(), MyName);
+                return;
+            }
             Screens.JoinFailed(why);
             UI.Toast(why, true);
         }
@@ -200,6 +215,27 @@ namespace DreidelRoyale.Net
         // ---------------------------------------------------------------
         //  join
         // ---------------------------------------------------------------
+        /// <summary>
+        /// Quick Match: ask the network whether anyone is open rather than naming a code. If a
+        /// table answers, take a seat at it; if nothing answers, open one and wait, so the
+        /// first person to press the button becomes the host for whoever presses it next.
+        /// </summary>
+        public void QuickMatch(string name)
+        {
+            MyName = string.IsNullOrEmpty(name) ? "Player" : name;
+            _quickMatching = true;
+            JoinGame(new LanTransport(), LanTransport.AnyRoom, MyName);
+        }
+
+        bool _quickMatching;
+
+        public void CancelQuickMatch()
+        {
+            _quickMatching = false;
+            LeaveEverything();
+            GC.IsLocalGame = true;
+        }
+
         public void JoinGame(INetTransport transport, string code, string name)
         {
             MyName = string.IsNullOrEmpty(name) ? "Player" : name;
@@ -403,6 +439,7 @@ namespace DreidelRoyale.Net
         public void Broadcast()
         {
             if (!IsHost) return;
+            RefreshOpenness();
 
             // Invariant: no two seats share a peer id, ever. The JOIN_INFO handler blocks
             // duplicates at the source; this is the backstop, running on every broadcast so
@@ -428,6 +465,14 @@ namespace DreidelRoyale.Net
                 var w = GC.G.Players.FirstOrDefault(p => !p.Eliminated);
                 GC.ShowWinner(w != null ? w.Name : "Nobody");
             }
+        }
+
+        /// <summary>A table advertises itself only while it is a lobby with room in it.</summary>
+        void RefreshOpenness()
+        {
+            var lan = Transport as LanTransport;
+            if (lan != null)
+                lan.AcceptingPlayers = GC.G.Status == GameStatus.Lobby && GC.G.Players.Count < 8;
         }
 
         void BroadcastRaw(NetMsg m)
@@ -561,6 +606,7 @@ namespace DreidelRoyale.Net
             if (!IsHost) return;
             if (GC.G.Players.Count < 2) { UI.Toast("Waiting for at least 2 players", true); return; }
 
+            RefreshOpenness();
             var chosen = TallyEnvVote();
             GC.G.Env = chosen;
             GC.ApplyEnv(chosen);

@@ -213,6 +213,7 @@ namespace UnityEngine
     public static class Application {
         public static int targetFrameRate;
         public static bool isPlaying, isMobilePlatform;
+        public static RuntimePlatform platform;
         public static void Quit(){}
     }
     public static class Input {
@@ -227,6 +228,7 @@ namespace UnityEngine
         public static Touch GetTouch(int i){return default(Touch);}
     }
     public enum KeyCode { Space, Escape, Return }
+    public enum RuntimePlatform { Android, IPhonePlayer, WindowsPlayer, OSXPlayer }
     public static class PlayerPrefs {
         public static bool HasKey(string k){return false;}
         public static string GetString(string k){return null;}
@@ -244,6 +246,7 @@ namespace UnityEngine
     }
     public static class SystemInfo { public static bool supportsVibration; }
     public static class Handheld { public static void Vibrate(){} }
+    public static class GUIUtility { public static string systemCopyBuffer; }
     public static class QualitySettings {
         public static ShadowQuality shadows; public static ShadowResolution shadowResolution;
         public static float shadowDistance;

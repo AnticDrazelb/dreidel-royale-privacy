@@ -175,6 +175,8 @@ namespace DreidelRoyale.UI
             _resumeBtn.gameObject.SetActive(false);
 
             UIKit.Btn(c, "Single Player", UIKit.BtnKind.Primary, () => { Sfx.Play("tick"); Show("cpu"); });
+            UIKit.Btn(c, "Quick Match", UIKit.BtnKind.Ghost,
+                      () => { Sfx.Play("tick"); if (NetScreens != null) NetScreens.BeginQuickMatch(); });
             UIKit.Btn(c, "Decision Dreidel", UIKit.BtnKind.Ghost, () => { Sfx.Play("tick"); OpenCustom(); });
 
             UIKit.Spacer(c, 12f);
@@ -695,6 +697,7 @@ namespace DreidelRoyale.UI
             UIKit.SetSize(_winLifetime, 340, 20);
 
             UIKit.Spacer(col.transform, 8f);
+            UIKit.Btn(col.transform, "Share Result", UIKit.BtnKind.Ghost, ShareResult, 200f, 46f, 15);
             UIKit.Btn(col.transform, "Rematch", UIKit.BtnKind.Primary, () => { Sfx.Play("tick"); GC.Rematch(); });
             UIKit.Btn(col.transform, "Main Menu", UIKit.BtnKind.Ghost, QuitToMenu);
 
@@ -1114,6 +1117,23 @@ namespace DreidelRoyale.UI
         }
 
         public void HideWinner() { _winner.gameObject.SetActive(false); }
+
+        /// <summary>
+        /// The result as a story rather than a scoreline: the spin log runs as emoji, so
+        /// someone reading it can see the game turn.
+        /// </summary>
+        void ShareResult()
+        {
+            Sfx.Play("tick");
+            var st = GC.G.Stats;
+            var body = _winnerName.text + " takes the table.\n"
+                     + NativeShare.HistoryEmoji(st.History) + "\n"
+                     + string.Format("{0} rounds - {1} spins - best sweep {2} gelt",
+                                     GC.G.Round, st.Spins, st.BiggestSweep)
+                     + "\n\nDreidel Royale";
+            if (!NativeShare.Share("Dreidel Royale", body))
+                Toast("Result copied to the clipboard");
+        }
 
         /// <summary>The wind-up shakes the whole view - a nudge, not a lurch.</summary>
         public void ShakeScreen(float power) { _shake = power; }

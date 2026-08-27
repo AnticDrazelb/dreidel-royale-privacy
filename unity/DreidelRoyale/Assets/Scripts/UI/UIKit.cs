@@ -305,6 +305,13 @@ namespace DreidelRoyale.UI
         }
     }
 
+    /// <summary>A steady rotation, for the waiting spinners.</summary>
+    public class Spin : MonoBehaviour
+    {
+        public float DegreesPerSecond = -400f;
+        void Update() { transform.Rotate(0f, 0f, DegreesPerSecond * Time.deltaTime); }
+    }
+
     /// <summary>The stylesheet's `:active { transform: scale(0.97) }` on every button.</summary>
     public class PressScale : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     {
