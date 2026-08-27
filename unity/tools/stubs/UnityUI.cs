@@ -27,6 +27,8 @@ namespace UnityEngine.EventSystems
     public class UIBehaviour : UnityEngine.MonoBehaviour {
         protected virtual void Awake(){} protected virtual void OnEnable(){} protected virtual void OnDisable(){}
         protected virtual void Start(){} protected virtual void OnDestroy(){}
+        // Declared so a subclass that forgets `override` gets the same CS0114 the editor gives.
+        protected virtual void OnRectTransformDimensionsChange(){}
     }
 }
 

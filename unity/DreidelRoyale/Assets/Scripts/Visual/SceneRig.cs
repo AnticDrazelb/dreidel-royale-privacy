@@ -449,7 +449,9 @@ namespace DreidelRoyale.Visual
             var cube = Tex.EnvCube(env);
 
             RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
-            RenderSettings.customReflection = cube;
+            // customReflectionTexture, not customReflection: Unity 6 widened the field from
+            // Cubemap to Texture so a 2D reflection can be assigned, and deprecated the old one.
+            RenderSettings.customReflectionTexture = cube;
             // three.js set envMapIntensity per material (1.2 on brass up to 2.2 on the gem);
             // Unity's Standard shader has no per-material equivalent and the global is a
             // 0..1 slider, so the metals get the full weight and the flat 2D rooms - where a

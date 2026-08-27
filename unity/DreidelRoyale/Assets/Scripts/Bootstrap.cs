@@ -201,7 +201,9 @@ namespace DreidelRoyale
             scaler.matchWidthOrHeight = 0.65f;                    // favour width, so nothing crops
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            if (FindObjectOfType<EventSystem>() == null)
+            // FindFirstObjectByType, not FindObjectOfType: the old one is deprecated in Unity 6,
+            // and its replacement is explicit about not promising a sort order it never had.
+            if (FindFirstObjectByType<EventSystem>() == null)
             {
                 var es = new GameObject("EventSystem");
                 es.AddComponent<EventSystem>();

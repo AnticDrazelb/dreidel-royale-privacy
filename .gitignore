@@ -26,6 +26,14 @@
 # but never for a folder git isn't tracking.
 /[Aa]ssets/**/*.meta
 
+# Unity rewrites these on every open, with its own exact build hash and its own
+# package resolution. Tracking them means a pull that touches them is refused for
+# "local changes that would be overwritten" — which blocks the whole pull, not just
+# that file, and looks exactly like a pull that silently did nothing. The editor
+# version this project wants is stated in unity/README.md instead.
+unity/DreidelRoyale/ProjectSettings/ProjectVersion.txt
+unity/DreidelRoyale/Packages/packages-lock.json
+
 # Generated IDE and build files
 .vs/
 .vsconfig

@@ -45,7 +45,16 @@ namespace DreidelRoyale.UI
             Rebuild();
         }
 
-        void OnRectTransformDimensionsChange() { Rebuild(); }
+        /// <summary>
+        /// Must be an override. Declared plain it merely hides Graphic's method, so Unity
+        /// calls the base implementation and never this one — and the frame silently stops
+        /// re-laying-out when the screen resizes or the device rotates.
+        /// </summary>
+        protected override void OnRectTransformDimensionsChange()
+        {
+            base.OnRectTransformDimensionsChange();
+            Rebuild();
+        }
 
         void Rebuild()
         {

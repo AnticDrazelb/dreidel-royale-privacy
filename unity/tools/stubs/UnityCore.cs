@@ -130,6 +130,8 @@ namespace UnityEngine
         public static void Destroy(Object o){} public static void Destroy(Object o, float t){}
         public static void DestroyImmediate(Object o){}
         public static implicit operator bool(Object o){return true;}
+        public static T FindFirstObjectByType<T>() where T : Object {return null;}
+        public static T FindAnyObjectByType<T>() where T : Object {return null;}
         public static bool operator==(Object a, Object b){return false;}
         public static bool operator!=(Object a, Object b){return true;}
         public override bool Equals(object o){return false;} public override int GetHashCode(){return 0;}
@@ -274,7 +276,7 @@ namespace UnityEngine
         public static int reflectionBounces;
         public static Rendering.AmbientMode ambientMode;
         public static Rendering.DefaultReflectionMode defaultReflectionMode;
-        public static Cubemap customReflection;
+        public static Texture customReflectionTexture;
     }
     public enum ShadowProjection { CloseFit, StableFit }
     public enum FogMode { Linear=1, Exponential=2, ExponentialSquared=3 }
