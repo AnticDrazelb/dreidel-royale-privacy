@@ -134,3 +134,9 @@ namespace UnityEngine.UI
         public static Vector2 WorldToScreenPoint(Camera c, Vector3 w){return Vector2.zero;}
     }
 }
+
+namespace UnityEngine.InputSystem.UI
+{
+    /// The Input System's UI module, used where the legacy Input class is compiled out.
+    public class InputSystemUIInputModule : UnityEngine.Behaviour { }
+}

@@ -207,8 +207,27 @@ namespace DreidelRoyale
             {
                 var es = new GameObject("EventSystem");
                 es.AddComponent<EventSystem>();
+
+                // Which module can drive the UI depends on a project setting, and picking the
+                // wrong one is silent: every button simply stops responding, with nothing in
+                // the log. StandaloneInputModule reads the legacy Input class, so it only
+                // works where that is compiled in.
+#if ENABLE_LEGACY_INPUT_MANAGER
                 es.AddComponent<StandaloneInputModule>();
+#else
+                es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#endif
             }
+
+#if !ENABLE_LEGACY_INPUT_MANAGER
+            // The UI will respond, but nothing else will: the spin button's charge-and-release,
+            // the chat panel and every AR gesture read UnityEngine.Input directly. This has to
+            // be loud, because the game otherwise looks perfectly healthy and ignores the player.
+            Debug.LogError("[Dreidel Royale] Active Input Handling is set to Input System only. "
+                           + "Spin, chat and AR gestures all read the legacy Input class and will "
+                           + "not respond. Set it to \"Both\" - Dreidel Royale > Configure for "
+                           + "Android and iOS does this for you.");
+#endif
 
             var mgr = new GameObject("UIManager");
             _ui = mgr.AddComponent<UIManager>();
