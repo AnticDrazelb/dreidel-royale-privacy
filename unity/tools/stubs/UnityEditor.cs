@@ -48,7 +48,15 @@ namespace UnityEditor
         }
     }
 
-    public class SerializedProperty { public int intValue { get; set; } public bool boolValue { get; set; } }
+    public class SerializedProperty {
+        public int intValue { get; set; } public bool boolValue { get; set; }
+        public string stringValue { get; set; }
+        public UnityEngine.Object objectReferenceValue { get; set; }
+        public int arraySize { get; set; }
+        public SerializedProperty GetArrayElementAtIndex(int i){return null;}
+        public void InsertArrayElementAtIndex(int i){}
+        public void DeleteArrayElementAtIndex(int i){}
+    }
     public class SerializedObject {
         public SerializedObject(UnityEngine.Object o){}
         public SerializedProperty FindProperty(string path){return null;}

@@ -10,9 +10,13 @@ and sound design are quoted from the original rather than re-invented.
    Not the repository root — the root is not a Unity project, and opening it there makes an
    empty one with a `Library/` folder beside your git history.
 2. Open `Assets/Scenes/Main.unity` and press Play.
-3. Run **Dreidel Royale → Configure for Android and iOS** once. Among other things it sets
-   *Active Input Handling* to **Both**, which this project requires: AR camera tracking needs
-   the Input System, and every control in the game reads the legacy one. Unity reloads after.
+3. Run **Dreidel Royale → Configure for Android and iOS** once. This is not optional for a
+   device build: because the whole scene is generated in code, no asset references any
+   shader, so a player build strips every one of them and the game renders magenta on the
+   phone while looking perfect in the editor. The menu item adds them to *Always Included
+   Shaders*, and **Validate build settings** reports any that are missing. It also sets *Active Input Handling* to
+   **Both**, which this project requires: AR camera tracking needs the Input System, and every
+   control in the game reads the legacy one. Unity reloads after.
 4. For **Online** play only: link a project under *Edit → Project Settings → Services* and
    press **Create/Link**. It is free, it takes a minute, and Unity Relay reads the project id
    out of the build — without one, Online fails at the first step. *Same Wi-Fi* play,

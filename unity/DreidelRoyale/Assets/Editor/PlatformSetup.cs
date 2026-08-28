@@ -60,6 +60,7 @@ namespace DreidelRoyale.EditorTools
             AssetDatabase.SaveAssets();
             Debug.Log("[Dreidel Royale] Platform setup:\n  - " + string.Join("\n  - ", log.ToArray()));
             EnableBothInputBackends();
+            EnsureShadersAreIncluded(log);
             Validate();
         }
 
@@ -259,6 +260,96 @@ namespace DreidelRoyale.EditorTools
             }
         }
 
+        /// <summary>
+        /// Every shader this game uses, resolved by name at runtime.
+        ///
+        /// That is a direct consequence of generating the whole scene in code: no material
+        /// in any asset references any of these, so as far as the build pipeline can tell
+        /// nothing needs them, and it strips them. The editor is unaffected — it has the
+        /// whole shader library loaded — so the failure appears only in a player build, as
+        /// a magenta table on a phone after everything looked right on the desk.
+        ///
+        /// Naming them here is what keeps them in the build.
+        /// </summary>
+        static readonly string[] RuntimeShaders =
+        {
+            "Standard",
+            "Unlit/Texture",
+            "Unlit/Color",
+            "Unlit/Transparent",
+            "Sprites/Default",
+            "DreidelRoyale/ShadowCatcher",
+        };
+
+        static void EnsureShadersAreIncluded(List<string> log)
+        {
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
+                if (assets == null || assets.Length == 0) return;
+                var so = new SerializedObject(assets[0]);
+                var list = so.FindProperty("m_AlwaysIncludedShaders");
+                if (list == null) return;
+
+                var present = new HashSet<string>();
+                for (int i = 0; i < list.arraySize; i++)
+                {
+                    var sh = list.GetArrayElementAtIndex(i).objectReferenceValue as Shader;
+                    if (sh != null) present.Add(sh.name);
+                }
+
+                int added = 0;
+                foreach (var name in RuntimeShaders)
+                {
+                    if (present.Contains(name)) continue;
+                    var shader = Shader.Find(name);
+                    if (shader == null)
+                    {
+                        log.Add("shaders: '" + name + "' not found in this project - skipped");
+                        continue;
+                    }
+                    list.InsertArrayElementAtIndex(list.arraySize);
+                    list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+                    added++;
+                }
+                if (added > 0)
+                {
+                    so.ApplyModifiedProperties();
+                    AssetDatabase.SaveAssets();
+                }
+                log.Add("shaders: " + added + " added to Always Included ("
+                        + RuntimeShaders.Length + " needed at runtime)");
+            }
+            catch (Exception e)
+            {
+                log.Add("shaders: could not update Always Included - " + e.Message);
+            }
+        }
+
+        /// <summary>Which runtime shaders are still missing from the build, if any.</summary>
+        static List<string> MissingIncludedShaders()
+        {
+            var missing = new List<string>();
+            try
+            {
+                var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
+                if (assets == null || assets.Length == 0) return missing;
+                var list = new SerializedObject(assets[0]).FindProperty("m_AlwaysIncludedShaders");
+                if (list == null) return missing;
+
+                var present = new HashSet<string>();
+                for (int i = 0; i < list.arraySize; i++)
+                {
+                    var sh = list.GetArrayElementAtIndex(i).objectReferenceValue as Shader;
+                    if (sh != null) present.Add(sh.name);
+                }
+                foreach (var name in RuntimeShaders)
+                    if (!present.Contains(name) && Shader.Find(name) != null) missing.Add(name);
+            }
+            catch { }
+            return missing;
+        }
+
         [MenuItem("Dreidel Royale/Validate build settings")]
         public static void Validate()
         {
@@ -283,6 +374,12 @@ namespace DreidelRoyale.EditorTools
             // Relay reads the project id out of the build. Without a linked project, Online
             // fails at the first step on a real phone and nowhere else - which is exactly the
             // kind of thing that gets discovered after a store submission rather than before.
+            var missingShaders = MissingIncludedShaders();
+            if (missingShaders.Count > 0)
+                problems.Add("These shaders are resolved by name at runtime but are not in Always "
+                             + "Included Shaders, so the build will strip them and the game will render "
+                             + "magenta on device: " + string.Join(", ", missingShaders.ToArray()));
+
             if (!InputHandlingIsBoth())
                 problems.Add("Active Input Handling is not \"Both\". AR camera tracking needs the "
                              + "Input System and every control in this game reads the legacy one.");
