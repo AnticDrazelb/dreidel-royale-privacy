@@ -11,6 +11,14 @@
     <type fullname="DreidelRoyale.Core.LifetimeStats" preserve="all" />
     <type fullname="DreidelRoyale.Core.GameController/SaveBlob" preserve="all" />
     <type fullname="DreidelRoyale.Core.GameController/Wrapper" preserve="all" />
+
+    <!--
+      Reached only by name, from native code: the store bridge answers a purchase with
+      UnitySendMessage("Bootstrap", "OnPurchaseComplete", ""). Nothing in managed code calls
+      these, so IL2CPP has every reason to remove them - and then a real purchase completes,
+      the player is charged, and the entitlement never arrives.
+    -->
+    <type fullname="DreidelRoyale.Core.IapCallbacks" preserve="all" />
   </assembly>
   <assembly fullname="System" preserve="all" />
   <assembly fullname="System.Core" preserve="all" />
