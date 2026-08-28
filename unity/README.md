@@ -244,6 +244,23 @@ direct-IP connection fail honestly when the code is wrong rather than seating so
 table they did not mean to join. On Android and desktop the broadcast path still runs first,
 because it answers in milliseconds; the scan is only the fallback.
 
+## About .meta files
+
+Only two are committed: `Bootstrap.cs.meta` and `Main.unity.meta`. They are the only GUIDs
+anything references — the scene points at the Bootstrap component by GUID, and the build
+settings point at the scene by GUID. Both are pinned and verified.
+
+Unity generates the rest on first import. They are deliberately not committed here, for two
+reasons. A `.meta` for an iOS plugin carries `PluginImporter` platform settings that decide
+whether the file is compiled into the Xcode project at all; hand-writing those without an
+editor to check them risks a silently broken iOS build. And your editor has already written
+its own — committing a different set would put locally-modified files in the way of the next
+`git pull`, which refuses the whole pull, not just those files.
+
+Once the project opens cleanly, commit the generated `.meta` files from the machine that has
+Unity. From then on the GUIDs are stable and shared, which is what you want before anything
+references an asset by GUID.
+
 ## Verifying package APIs
 
 `tools/apicheck/` checks every Unity-package member this port depends on against the
