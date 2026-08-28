@@ -39,9 +39,14 @@ namespace DreidelRoyale.AR
                 var rotation = new UnityEngine.InputSystem.InputAction(
                     "AR Camera Rotation", UnityEngine.InputSystem.InputActionType.Value,
                     "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion");
+                // trackingState, not isTracked. TrackedPoseDriver reads this action as
+                // `(TrackingStates)context.ReadValue<int>()` — a flags int where Position is
+                // bit 0 and Rotation is bit 1. A Button would read back 1, which the driver
+                // would take to mean "position tracked, rotation not", and the AR camera
+                // would refuse to rotate. The driver's own default uses "Integer".
                 var tracked = new UnityEngine.InputSystem.InputAction(
-                    "AR Camera Tracked", UnityEngine.InputSystem.InputActionType.Value,
-                    "<XRHMD>/isTracked", expectedControlType: "Button");
+                    "AR Camera Tracking State", UnityEngine.InputSystem.InputActionType.Value,
+                    "<XRHMD>/trackingState", expectedControlType: "Integer");
 
                 driver.positionInput = new UnityEngine.InputSystem.InputActionProperty(position);
                 driver.rotationInput = new UnityEngine.InputSystem.InputActionProperty(rotation);

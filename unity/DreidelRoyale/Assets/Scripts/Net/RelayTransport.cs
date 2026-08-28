@@ -74,6 +74,7 @@ namespace DreidelRoyale.Net
         Task<JoinAllocation> _joinTask;
 
         NetworkDriver _driver;
+        NetworkEndpoint _relayEndpoint;
         NetworkPipeline _pipeline;
         NetworkConnection _clientConn;
         readonly List<NetworkConnection> _serverConns = new List<NetworkConnection>();
@@ -234,6 +235,11 @@ namespace DreidelRoyale.Net
             settings.WithFragmentationStageParameters(payloadCapacity: 16 * 1024);
             settings.WithReliableStageParameters(windowSize: 32);
 
+            // Kept because the client needs it to dial: Transport 2 removed the
+            // parameterless Connect() that the relay flow used to rely on, so the endpoint
+            // has to be carried from the allocation to the Connect call by hand.
+            _relayEndpoint = data.Endpoint;
+
             _driver = NetworkDriver.Create(settings);
 
             // Every message the game sends has to arrive, and arrive in order: a dropped turn
@@ -274,7 +280,7 @@ namespace DreidelRoyale.Net
             }
             else
             {
-                _clientConn = _driver.Connect();
+                _clientConn = _driver.Connect(_relayEndpoint);
                 Advance(Phase.Live);      // ready is reported on the Connect event, not here
             }
         }
@@ -413,6 +419,7 @@ namespace DreidelRoyale.Net
             if (_driver.IsCreated) _driver.Dispose();
             _driver = default(NetworkDriver);
             _clientConn = default(NetworkConnection);
+            _relayEndpoint = default(NetworkEndpoint);
 
             _servicesTask = null; _signInTask = null;
             _allocTask = null; _codeTask = null; _joinTask = null;

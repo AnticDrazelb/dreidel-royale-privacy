@@ -14,16 +14,16 @@
 #            member may be `.ctor` for a constructor, or omitted to check the type only
 
 # ---- Unity Transport -------------------------------------------------------
-com.unity.transport | Unity.Networking.Transport | NetworkDriver | Create
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Create | Create(NetworkSettings settings)
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | Bind
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | Listen
-com.unity.transport | Unity.Networking.Transport | NetworkDriver | Connect
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | Connect | Connect(NetworkEndpoint endpoint)
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | Accept
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | ScheduleUpdate
-com.unity.transport | Unity.Networking.Transport | NetworkDriver | PopEventForConnection
-com.unity.transport | Unity.Networking.Transport | NetworkDriver | BeginSend
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | PopEventForConnection | PopEventForConnection(NetworkConnection connection, out DataStreamReader reader)
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | BeginSend | BeginSend(NetworkPipeline pipe, NetworkConnection connection, out DataStreamWriter writer, int requiredPayloadSize = 0)
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | EndSend
-com.unity.transport | Unity.Networking.Transport | NetworkDriver | CreatePipeline
+com.unity.transport | Unity.Networking.Transport | NetworkDriver | CreatePipeline | CreatePipeline(params Type[] stages)
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | Dispose
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | Bound
 com.unity.transport | Unity.Networking.Transport | NetworkDriver | IsCreated
@@ -55,8 +55,8 @@ com.unity.services.authentication | Unity.Services.Authentication | Authenticati
 com.unity.services.authentication | Unity.Services.Authentication | IAuthenticationService | SignInAnonymouslyAsync
 com.unity.services.authentication | Unity.Services.Authentication | IAuthenticationService | IsSignedIn
 com.unity.services.relay | Unity.Services.Relay | RelayService | Instance
-com.unity.services.relay | Unity.Services.Relay | IRelayService | CreateAllocationAsync
-com.unity.services.relay | Unity.Services.Relay | IRelayService | GetJoinCodeAsync
+com.unity.services.relay | Unity.Services.Relay | IRelayService | CreateAllocationAsync | CreateAllocationAsync(int maxConnections, string region = null)
+com.unity.services.relay | Unity.Services.Relay | IRelayService | GetJoinCodeAsync | GetJoinCodeAsync(Guid allocationId)
 com.unity.services.relay | Unity.Services.Relay | IRelayService | JoinAllocationAsync
 com.unity.services.relay | Unity.Services.Relay.Models | Allocation | AllocationId
 com.unity.services.relay | Unity.Services.Relay.Models | JoinAllocation |
@@ -65,7 +65,7 @@ com.unity.services.relay | Unity.Services.Relay.Models | JoinAllocation |
 com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSession | state
 com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSession | CheckAvailability
 com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARSession | Install
-com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARRaycastManager | Raycast
+com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARRaycastManager | Raycast | Raycast(
 com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARPlaneManager |
 com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARCameraManager |
 com.unity.xr.arfoundation | UnityEngine.XR.ARFoundation | ARCameraBackground |
@@ -90,3 +90,7 @@ com.unity.xr.core-utils | Unity.XR.CoreUtils | TrackingOriginMode |
 com.unity.inputsystem | UnityEngine.InputSystem | InputActionType |
 com.unity.inputsystem | UnityEngine.InputSystem.XR | TrackingType |
 com.unity.inputsystem | UnityEngine.InputSystem.XR | UpdateType |
+
+# ---- signature-pinned: the shapes that bit, so drift is caught not discovered
+com.unity.transport | Unity.Networking.Transport.Relay | RelayServerData | Endpoint | public NetworkEndpoint Endpoint;
+com.unity.inputsystem | UnityEngine.InputSystem | InputAction | .ctor | InputAction(string name = null, InputActionType type = default, string binding = null,

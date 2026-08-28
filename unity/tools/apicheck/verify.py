@@ -64,7 +64,9 @@ def parse_surface():
             if not line:
                 continue
             parts = [p.strip() for p in line.split('|')]
-            if len(parts) != 4:
+            if len(parts) == 4:
+                parts.append('')                     # no signature demanded
+            if len(parts) != 5:
                 print(f'  api-surface.txt:{n}: malformed line')
                 sys.exit(2)
             rows.append((n, *parts))
@@ -174,7 +176,7 @@ def declarations(pkg):
     """type name -> namespaces it is declared in; type name -> its public members."""
     if pkg in _cache:
         return _cache[pkg]
-    types, members = {}, {}
+    types, members, sigs = {}, {}, {}
 
     for path in sources(pkg):
         try:
@@ -205,6 +207,8 @@ def declarations(pkg):
                         name = _member_name(line)
                         if name:
                             members.setdefault(scopes[-1][1], set()).add(name)
+                            sigs.setdefault((scopes[-1][1], name), []).append(
+                                ' '.join(line.split()))
 
             opens = line.count('{')
             closes = line.count('}')
@@ -215,7 +219,7 @@ def declarations(pkg):
             while scopes and depth <= scopes[-1][2]:
                 scopes.pop()
 
-    _cache[pkg] = (types, members)
+    _cache[pkg] = (types, members, sigs)
     return _cache[pkg]
 
 
@@ -234,11 +238,11 @@ def main():
         sys.exit(2)
 
     failures = []
-    for lineno, pkg, ns, ty, member in parse_surface():
+    for lineno, pkg, ns, ty, member, want_sig in parse_surface():
         if not os.path.isdir(os.path.join(CACHE, pkg)):
             failures.append((lineno, f'{pkg} not fetched'))
             continue
-        types, members = declarations(pkg)
+        types, members, sigs = declarations(pkg)
 
         if ty not in types:
             failures.append((lineno, f'{pkg}: type {ty} does not exist'))
@@ -247,12 +251,26 @@ def main():
             found = ', '.join(sorted(n for n in types[ty] if n)) or '(global)'
             failures.append((lineno, f'{pkg}: {ty} is in {found}, not {ns}'))
             continue
-        if member and member != '.ctor':
-            if member not in members.get(ty, set()):
-                failures.append((lineno, f'{pkg}: {ns}.{ty} has no member {member}'))
-        elif member == '.ctor':
-            if ty not in members.get(ty, set()):
-                failures.append((lineno, f'{pkg}: {ns}.{ty} has no public constructor'))
+        name = ty if member == '.ctor' else member
+        if member:
+            if name not in members.get(ty, set()):
+                what = 'public constructor' if member == '.ctor' else f'member {member}'
+                failures.append((lineno, f'{pkg}: {ns}.{ty} has no {what}'))
+                continue
+
+        # A member existing is not the same as it having the shape the port calls.
+        # Both bugs this checker was extended to catch - a Button bound where the
+        # driver reads an int, and a Connect() overload that no longer exists -
+        # passed a name check and failed at runtime.
+        if want_sig:
+            found = sigs.get((ty, name), [])
+            norm = ' '.join(want_sig.split())
+            if not any(norm in ' '.join(f.split()) for f in found):
+                shown = found[0][:96] if found else '(no declaration captured)'
+                failures.append((lineno,
+                    f'{pkg}: {ns}.{ty}.{name} does not match\n'
+                    f'{"":>26}wanted: {norm}\n'
+                    f'{"":>26}actual: {shown}'))
 
     checked = len(parse_surface())
     if failures:

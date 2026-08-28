@@ -132,7 +132,9 @@ namespace Unity.Networking.Transport
         public NetworkPipeline CreatePipeline(params Type[] stages) { return default(NetworkPipeline); }
         public int Bind(NetworkEndpoint endpoint) { return 0; }
         public int Listen() { return 0; }
-        public NetworkConnection Connect() { return default(NetworkConnection); }
+        // No parameterless overload: Transport 2 removed it, which is why the relay
+        // client has to carry the endpoint from the allocation to this call.
+        public NetworkConnection Connect(NetworkEndpoint endpoint) { return default(NetworkConnection); }
         public NetworkConnection Accept() { return default(NetworkConnection); }
         public JobHandle ScheduleUpdate() { return default(JobHandle); }
         public NetworkEvent.Type PopEventForConnection(NetworkConnection c, out DataStreamReader reader)
@@ -179,8 +181,11 @@ namespace Unity.Networking.Transport.Relay
     /// ToRelayServerData extension methods this port once used do not exist at all.
     public struct RelayServerData
     {
-        public RelayServerData(Allocation allocation, string connectionType) { }
-        public RelayServerData(JoinAllocation allocation, string connectionType) { }
+        /// <summary>Endpoint the relay server can be reached on.</summary>
+        public NetworkEndpoint Endpoint;
+
+        public RelayServerData(Allocation allocation, string connectionType) { Endpoint = default(NetworkEndpoint); }
+        public RelayServerData(JoinAllocation allocation, string connectionType) { Endpoint = default(NetworkEndpoint); }
     }
 
     /// An extension method in this namespace, so the using directive is required.
