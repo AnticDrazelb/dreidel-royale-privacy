@@ -189,6 +189,34 @@ namespace DreidelRoyale.Net
             UI.Toast(why, true);
         }
 
+        /// <summary>Carry a seat's gimel tally across an id change, and leave no dead key.</summary>
+        void MoveGimels(string fromId, string toId)
+        {
+            if (fromId == toId || GC.G == null || GC.G.Stats == null) return;
+            var g = GC.G.Stats.Gimels;
+            int n;
+            if (!g.TryGetValue(fromId, out n)) return;
+            g.Remove(fromId);
+            int existing;
+            g[toId] = g.TryGetValue(toId, out existing) ? existing + n : n;
+        }
+
+        /// <summary>
+        /// A float off the wire, made safe to compute with.
+        ///
+        /// The clamps downstream are not enough on their own: every comparison against NaN is
+        /// false, so Mathf.Clamp(NaN, lo, hi) returns NaN unchanged. One guest sending
+        /// power: NaN in an ACTION_SPIN would carry it through the whole spin - the rotation,
+        /// the duration, the landing angle - and the spin would never resolve, freezing the
+        /// table for everyone with no way back short of restarting the app. JsonUtility
+        /// parses "NaN" and "Infinity" happily, so this is one line of JSON.
+        /// </summary>
+        static float Sane(float v, float fallback, float lo = -1e6f, float hi = 1e6f)
+        {
+            if (float.IsNaN(v) || float.IsInfinity(v)) return fallback;
+            return Mathf.Clamp(v, lo, hi);
+        }
+
         void HandlePeerConnected(INetPeer peer)
         {
             if (!IsHost) return;
@@ -306,6 +334,11 @@ namespace DreidelRoyale.Net
                         && !string.IsNullOrEmpty(p.TokenHash) && presented == p.TokenHash);
                     if (held != null)
                     {
+                        // The tally is keyed by seat id, and the rebind changes it. Without
+                        // moving the entry the player's gimels are orphaned - their count
+                        // resets to zero on the winner card, and the dead key rides in every
+                        // STATE_UPDATE for the rest of the game, once per reconnect.
+                        MoveGimels(held.Id, c.Id);
                         held.Id = c.Id;
                         held.Disconnected = false;
                         if (Unlocks.ValidSkin(d.skin)) held.Skin = d.skin;
@@ -380,7 +413,7 @@ namespace DreidelRoyale.Net
                 {
                     var cur = GC.G.Current;
                     if (GC.G.Status == GameStatus.Playing && cur != null && cur.Id == c.Id)
-                        GC.ExecutePhysicsSpin(d.power);
+                        GC.ExecutePhysicsSpin(Sane(d.power, 0.6f));
                     break;
                 }
 
@@ -431,8 +464,9 @@ namespace DreidelRoyale.Net
                     break;
 
                 case MsgType.AnimSpin:
-                    GC.PerformNetworkSpin(d.delta, d.final, d.wobble, d.duration,
-                                          d.power > 0f ? d.power : 0.6f);
+                    GC.PerformNetworkSpin(Sane(d.delta, 1440f), Sane(d.final, 0f),
+                                          Sane(d.wobble, 0f), Sane(d.duration, 3f, 0.2f, 12f),
+                                          Sane(d.power, 0.6f));
                     break;
 
                 case MsgType.StartCount:
@@ -460,7 +494,10 @@ namespace DreidelRoyale.Net
             {
                 type = MsgType.StateUpdate,
                 state = NetState.From(GC.G),
-                order = _connections.Select(c => c.Id).ToList()
+                // Seats only. This list exists so a host loss staggers the takeover by join
+                // order, and observers never take the chair - including every one of them
+                // would put an unbounded list in a message sent on every state change.
+                order = GC.G.Players.Where(p => !p.Forfeited).Select(p => p.Id).ToList()
             };
         }
 

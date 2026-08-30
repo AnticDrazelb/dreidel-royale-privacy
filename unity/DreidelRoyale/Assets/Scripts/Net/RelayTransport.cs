@@ -38,6 +38,9 @@ namespace DreidelRoyale.Net
         /// <summary>How long the whole open-a-room dance gets before we call it dead.</summary>
         const float SetupTimeout = 25f;
 
+        /// <summary>The fragmentation stage's payload capacity, and so the real message ceiling.</summary>
+        const int MaxPayload = 16 * 1024;
+
         public string Name { get { return "Online"; } }
         public bool IsOnline { get { return true; } }
 
@@ -268,7 +271,7 @@ namespace DreidelRoyale.Net
             // Headroom over the 4 KB default. NetProtocol caps what travels so a full
             // eight-player STATE_UPDATE lands around 2.5 KB, but the margin costs nothing
             // and a message that outgrows the buffer fails to send rather than truncating.
-            settings.WithFragmentationStageParameters(payloadCapacity: 16 * 1024);
+            settings.WithFragmentationStageParameters(payloadCapacity: MaxPayload);
             settings.WithReliableStageParameters(windowSize: 32);
 
             // Kept because the client needs it to dial: Transport 2 removed the
@@ -423,7 +426,16 @@ namespace DreidelRoyale.Net
             if (_phase != Phase.Live || !_driver.IsCreated || !c.IsCreated) return;
 
             var bytes = Encoding.UTF8.GetBytes(json);
-            if (bytes.Length > ushort.MaxValue) return;
+            // Against the pipeline's real capacity, not against what a ushort can count.
+            // The fragmentation stage is configured for 16 KB, so anything between that and
+            // 65,535 passed this guard and then failed inside BeginSend - a message silently
+            // dropped by the one transport that is supposed to be reliable.
+            if (bytes.Length > MaxPayload)
+            {
+                Debug.LogWarning("[Relay] dropping a " + bytes.Length + " byte message; the "
+                                 + "pipeline carries " + MaxPayload + ".");
+                return;
+            }
 
             DataStreamWriter writer;
             if (_driver.BeginSend(_pipeline, c, out writer) != 0) return;
