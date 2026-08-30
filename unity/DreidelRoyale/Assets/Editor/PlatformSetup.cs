@@ -279,6 +279,14 @@ namespace DreidelRoyale.EditorTools
             "Unlit/Transparent",
             "Sprites/Default",
             "DreidelRoyale/ShadowCatcher",
+
+            // MatUtil.Additive walks this list in order, and it is every halo, aura, ring
+            // and flame in the game. Missing it the first time round meant the fix looked
+            // complete while the candles, the gem glow and the win burst would all still
+            // have fallen back to Sprites/Default on device.
+            "Legacy Shaders/Particles/Additive",
+            "Mobile/Particles/Additive",
+            "Particles/Standard Unlit",
         };
 
         static void EnsureShadersAreIncluded(List<string> log)

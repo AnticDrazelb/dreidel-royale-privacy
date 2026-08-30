@@ -94,3 +94,7 @@ com.unity.inputsystem | UnityEngine.InputSystem.XR | UpdateType |
 # ---- signature-pinned: the shapes that bit, so drift is caught not discovered
 com.unity.transport | Unity.Networking.Transport.Relay | RelayServerData | Endpoint | public NetworkEndpoint Endpoint;
 com.unity.inputsystem | UnityEngine.InputSystem | InputAction | .ctor | InputAction(string name = null, InputActionType type = default, string binding = null,
+
+# ---- the DTLS guard
+com.unity.transport | Unity.Networking.Transport.Relay | RelayServerData | IsSecure
+com.unity.transport | Unity.Networking.Transport | NetworkEndpoint | IsValid

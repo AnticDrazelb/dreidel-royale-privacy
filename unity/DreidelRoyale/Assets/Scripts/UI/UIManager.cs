@@ -959,7 +959,7 @@ namespace DreidelRoyale.UI
             var raw = _localName.text.Trim();
             if (string.IsNullOrEmpty(raw)) { Toast("Enter a name first", true); return; }
             if (GC.G.Players.Count >= 8) { Toast("The table is full", true); return; }
-            var name = UniqueName(GameController.Trim(raw, 10));
+            var name = UniqueName(Player.CleanName(raw, 10));
             GC.G.Players.Add(new Player("L" + GC.G.Players.Count, name, Consts.StartCoins));
             _localName.text = "";
             Sfx.Play("tick"); Sfx.Buzz(10);

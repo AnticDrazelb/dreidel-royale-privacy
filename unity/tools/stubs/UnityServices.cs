@@ -94,6 +94,7 @@ namespace Unity.Networking.Transport
     public struct NetworkEndpoint
     {
         public static NetworkEndpoint AnyIpv4 { get { return default(NetworkEndpoint); } }
+        public bool IsValid { get { return false; } }
     }
 
     public struct NetworkSettings { }

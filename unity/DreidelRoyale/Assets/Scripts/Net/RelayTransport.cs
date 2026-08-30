@@ -202,7 +202,7 @@ namespace DreidelRoyale.Net
             if (_codeTask.IsFaulted) { FailService(_codeTask.Exception); return; }
 
             _joinCode = _codeTask.Result;
-            var data = new RelayServerData(_allocTask.Result, "udp");
+            var data = Secure(_allocTask.Result);
             if (!CreateDriver(ref data)) return;
             Advance(Phase.Bind);
         }
@@ -219,9 +219,45 @@ namespace DreidelRoyale.Net
             if (!_joinTask.IsCompleted) return;
             if (_joinTask.IsFaulted) { Fail("No online table with that code."); return; }
 
-            var data = new RelayServerData(_joinTask.Result, "udp");
+            var data = Secure(_joinTask.Result);
             if (!CreateDriver(ref data)) return;
             Advance(Phase.Bind);
+        }
+
+        /// <summary>
+        /// Prefer an encrypted relay link.
+        ///
+        /// YOU_ARE carries a seat's plaintext token exactly once, and the point of keeping
+        /// only a hash on the wire is that a listener cannot learn it. An unencrypted relay
+        /// hands it to anyone on the route, which is a strictly larger set than the players
+        /// at the table. Transport 2.4 has DTLS built in and picks the secure layer from
+        /// RelayServerData.IsSecure, so asking for it is the whole change.
+        ///
+        /// The fallback is not defensive habit. The constructor does NOT throw when a region
+        /// offers no dtls endpoint - it walks the allocation's endpoint list, finds no match,
+        /// and silently leaves Endpoint at its zero value. Connecting to that fails later and
+        /// obscurely, so the endpoint is checked here instead. A cleartext game beats no
+        /// game, at the cost of one line in the log.
+        ///
+        /// Host and guests must agree on the connection type; both paths come through here,
+        /// so they cannot disagree.
+        /// </summary>
+        static RelayServerData Secure(Allocation a)
+        {
+            var secure = new RelayServerData(a, "dtls");
+            if (secure.Endpoint.IsValid) return secure;
+            Debug.LogWarning("[Relay] This region offers no DTLS endpoint; falling back to "
+                             + "unencrypted UDP.");
+            return new RelayServerData(a, "udp");
+        }
+
+        static RelayServerData Secure(JoinAllocation a)
+        {
+            var secure = new RelayServerData(a, "dtls");
+            if (secure.Endpoint.IsValid) return secure;
+            Debug.LogWarning("[Relay] This table's region offers no DTLS endpoint; falling "
+                             + "back to unencrypted UDP.");
+            return new RelayServerData(a, "udp");
         }
 
         bool CreateDriver(ref RelayServerData data)

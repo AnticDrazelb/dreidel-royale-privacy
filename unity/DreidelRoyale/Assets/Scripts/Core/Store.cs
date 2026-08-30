@@ -27,7 +27,8 @@ namespace DreidelRoyale.Core
         {
             int v;
             var raw = Get(key);
-            return int.TryParse(raw, out v) ? v : fallback;
+            return int.TryParse(raw, System.Globalization.NumberStyles.Integer,
+                                System.Globalization.CultureInfo.InvariantCulture, out v) ? v : fallback;
         }
     }
 }

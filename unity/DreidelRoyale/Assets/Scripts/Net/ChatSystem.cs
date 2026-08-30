@@ -49,7 +49,10 @@ namespace DreidelRoyale.Net
 
         public void AddNotice(string text)
         {
-            Add(new ChatLine { Name = "", Text = text, Seat = -1, At = Time.time, IsNotice = true });
+            // Notices carry player names ("Ruthie dropped"), so they reach the parser too.
+            var clean = Sanitise(text);
+            if (string.IsNullOrEmpty(clean)) return;
+            Add(new ChatLine { Name = "", Text = clean, Seat = -1, At = Time.time, IsNotice = true });
         }
 
         void Add(ChatLine line)
@@ -67,7 +70,7 @@ namespace DreidelRoyale.Net
         {
             var clean = Sanitise(text);
             if (string.IsNullOrEmpty(clean)) return;
-            Add(new ChatLine { Name = name, Text = clean, Seat = seat, At = Time.time });
+            Add(new ChatLine { Name = Core.Player.CleanName(name), Text = clean, Seat = seat, At = Time.time });
         }
 
         /// <summary>True when this sender is inside their rate limit.</summary>

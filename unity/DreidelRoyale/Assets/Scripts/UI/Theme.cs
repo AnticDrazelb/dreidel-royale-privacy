@@ -59,7 +59,21 @@ namespace DreidelRoyale.UI
                 if (f != null) return f;
             }
             catch { }
-            try { return Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { return null; }
+            // LegacyRuntime.ttf, not Arial.ttf. Unity removed Arial from its builtin
+            // resources in 2022.2 and renamed the fallback; asking for the old name on
+            // Unity 6 returns null, and a null font means every Text in the game draws
+            // nothing at all — menus, HUD and result card alike, with no error.
+            foreach (var builtin in new[] { "LegacyRuntime.ttf", "Arial.ttf" })
+            {
+                try
+                {
+                    var f = Resources.GetBuiltinResource<Font>(builtin);
+                    if (f != null) return f;
+                }
+                catch { }
+            }
+            Debug.LogError("[Dreidel Royale] No font could be loaded. All text will be invisible.");
+            return null;
         }
 
         // ---- sprites ----

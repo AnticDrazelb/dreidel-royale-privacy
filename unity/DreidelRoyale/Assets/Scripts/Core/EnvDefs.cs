@@ -43,6 +43,13 @@ namespace DreidelRoyale.Core
 
     public static class Hex
     {
+        static float Num(string raw)
+        {
+            float v;
+            return float.TryParse(raw.Trim(), System.Globalization.NumberStyles.Float,
+                                  System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0f;
+        }
+
         /// <summary>Accepts "#rrggbb", "rrggbb" and "rgba(r,g,b,a)" — the CSS forms the source uses.</summary>
         public static Color To(string s)
         {
@@ -52,11 +59,13 @@ namespace DreidelRoyale.Core
             {
                 int o = s.IndexOf('('), c = s.IndexOf(')');
                 var parts = s.Substring(o + 1, c - o - 1).Split(',');
-                float r = float.Parse(parts[0]) / 255f;
-                float g = float.Parse(parts[1]) / 255f;
-                float b = float.Parse(parts[2]) / 255f;
-                float a = parts.Length > 3 ? float.Parse(parts[3]) : 1f;
-                return new Color(r, g, b, a);
+                // InvariantCulture, always. These strings are CSS quoted from the web build,
+                // so "0.25" is a quarter in every one of them - but a phone set to German,
+                // French, Spanish, Russian or Portuguese reads a full stop as a group
+                // separator, and float.Parse would return 25 or throw. Every colour with a
+                // fractional alpha in the game would be wrong, on a large share of devices.
+                return new Color(Num(parts[0]) / 255f, Num(parts[1]) / 255f, Num(parts[2]) / 255f,
+                                 parts.Length > 3 ? Num(parts[3]) : 1f);
             }
             Color col;
             if (!s.StartsWith("#")) s = "#" + s;

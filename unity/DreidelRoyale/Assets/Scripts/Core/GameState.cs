@@ -56,6 +56,25 @@ namespace DreidelRoyale.Core
         /// only has to survive one evening at a dreidel table needs, and it keeps the seat
         /// list small enough to matter on a relay.
         /// </summary>
+        /// <summary>
+        /// The single rule for a player-supplied name, wherever it comes from — a guest's
+        /// JOIN_INFO, the host's own text field, or a pass-and-play entry.
+        ///
+        /// Angle brackets are defused because names are rendered into the same rich-text
+        /// sinks as chat: the seat rows, the toasts and the chat feed all parse markup. Chat
+        /// has always been defused; a name is the more damaging of the two and was not. It
+        /// is broadcast in every state update, re-rendered on every row, and lasts the whole
+        /// game, where a chat line scrolls away.
+        /// </summary>
+        public static string CleanName(string raw, int max = 16)
+        {
+            if (string.IsNullOrEmpty(raw)) return "Player";
+            var n = raw.Replace('<', '(').Replace('>', ')');
+            n = System.Text.RegularExpressions.Regex.Replace(n, "\\s+", " ").Trim();
+            if (n.Length > max) n = n.Substring(0, max);
+            return n.Length == 0 ? "Player" : n;
+        }
+
         public static string HashToken(string token)
         {
             if (string.IsNullOrEmpty(token)) return "";

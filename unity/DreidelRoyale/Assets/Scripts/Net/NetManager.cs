@@ -106,7 +106,7 @@ namespace DreidelRoyale.Net
         // ---------------------------------------------------------------
         public void HostGame(INetTransport transport, string name)
         {
-            MyName = string.IsNullOrEmpty(name) ? "Player" : name;
+            MyName = Player.CleanName(name);
             IsHost = true;
             MySeatId = "HOST";
             GC.IsLocalGame = false;
@@ -244,7 +244,7 @@ namespace DreidelRoyale.Net
         /// </summary>
         public void QuickMatch(string name)
         {
-            MyName = string.IsNullOrEmpty(name) ? "Player" : name;
+            MyName = Player.CleanName(name);
             _quickMatching = true;
             JoinGame(new LanTransport(), LanTransport.AnyRoom, MyName);
         }
@@ -260,7 +260,7 @@ namespace DreidelRoyale.Net
 
         public void JoinGame(INetTransport transport, string code, string name)
         {
-            MyName = string.IsNullOrEmpty(name) ? "Player" : name;
+            MyName = Player.CleanName(name);
             IsHost = false;
             IsObserver = false;
             GC.IsLocalGame = false;
@@ -426,7 +426,7 @@ namespace DreidelRoyale.Net
 
                 case MsgType.YouAre:
                     MySeatKnownId = d.id;
-                    if (!string.IsNullOrEmpty(d.name)) MyName = d.name;
+                    if (!string.IsNullOrEmpty(d.name)) MyName = Player.CleanName(d.name);
                     if (!string.IsNullOrEmpty(d.token)) Store.Set("drdl-token-" + _joinedCode, d.token);
                     break;
 
@@ -441,7 +441,7 @@ namespace DreidelRoyale.Net
                     break;
 
                 case MsgType.Chat:
-                    Chat.Receive(d.name, d.text, Mathf.RoundToInt(d.delta));
+                    Chat.Receive(Player.CleanName(d.name), d.text, Mathf.RoundToInt(d.delta));
                     break;
 
                 case MsgType.HostEnd:
@@ -959,13 +959,7 @@ namespace DreidelRoyale.Net
         /// sane and unique: trimmed, capped, defaulted, and suffixed on collision so a new
         /// "Ben" can never be rebound into a dropped Ben's held seat.
         /// </summary>
-        static string CleanName(string n)
-        {
-            if (string.IsNullOrEmpty(n)) return "Player";
-            n = System.Text.RegularExpressions.Regex.Replace(n, "\\s+", " ").Trim();
-            if (n.Length > 16) n = n.Substring(0, 16);
-            return string.IsNullOrEmpty(n) ? "Player" : n;
-        }
+        static string CleanName(string n) { return Player.CleanName(n); }
 
         string UniqueName(string basename)
         {

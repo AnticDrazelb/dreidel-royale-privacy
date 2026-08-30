@@ -398,8 +398,8 @@ namespace DreidelRoyale.Net
 
         string MyName()
         {
-            var n = _nameInput != null ? _nameInput.text.Trim() : "";
-            return string.IsNullOrEmpty(n) ? "Player" : GameController.Trim(n, 10);
+            var n = _nameInput != null ? _nameInput.text : "";
+            return Player.CleanName(n, 10);
         }
 
         void ConfirmName()

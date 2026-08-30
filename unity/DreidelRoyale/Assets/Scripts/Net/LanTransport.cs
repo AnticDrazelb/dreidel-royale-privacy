@@ -256,7 +256,8 @@ namespace DreidelRoyale.Net
                         var theirCode = body.Substring(0, colon);
                         if (_code != AnyRoom && !string.Equals(theirCode, _code, StringComparison.OrdinalIgnoreCase))
                             continue;
-                        if (!int.TryParse(body.Substring(colon + 1), out port)) continue;
+                        if (!int.TryParse(body.Substring(colon + 1), System.Globalization.NumberStyles.Integer,
+                                          System.Globalization.CultureInfo.InvariantCulture, out port)) continue;
                         _resolvedCode = theirCode;
                         host = from.Address.ToString();
                         return true;
