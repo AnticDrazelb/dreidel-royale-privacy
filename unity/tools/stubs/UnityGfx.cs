@@ -21,6 +21,11 @@ namespace UnityEngine
         public void SetPixels(Color[] px, CubemapFace face){}
         public void Apply(bool mips){}
     }
+    public static class Graphics {
+        public static void Blit(RenderTexture src, RenderTexture dst){}
+        public static void Blit(RenderTexture src, RenderTexture dst, Material m){}
+        public static void DrawMesh(Mesh m, Vector3 p, Quaternion q, Material mat, int layer){}
+    }
     public class Texture : Object {
         public FilterMode filterMode; public TextureWrapMode wrapMode; public int anisoLevel;
         public int width, height;

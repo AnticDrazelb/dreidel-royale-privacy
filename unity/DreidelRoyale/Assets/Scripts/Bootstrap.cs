@@ -165,8 +165,11 @@ namespace DreidelRoyale
             _cam.fieldOfView = 38f;
             _cam.nearClipPlane = 0.1f;
             _cam.farClipPlane = 60f;
-            _cam.allowHDR = false;
+            // ToneMapper turns HDR on and owns it: an ACES curve applied to an already-clamped
+            // image cannot recover a highlight, it can only darken one.
+            _cam.allowHDR = true;
             go.AddComponent<AudioListener>();
+            go.AddComponent<ToneMapper>();
         }
 
         void BuildAudio()
