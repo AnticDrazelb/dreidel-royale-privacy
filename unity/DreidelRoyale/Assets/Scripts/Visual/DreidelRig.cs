@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using DreidelRoyale.Core;
+using Stop = DreidelRoyale.Visual.Canvas2D.Stop;
 
 namespace DreidelRoyale.Visual
 {
@@ -30,6 +31,7 @@ namespace DreidelRoyale.Visual
         public Transform MenorahGroup, DiamondGem, FounderMark, OilRing;
         readonly List<MeshRenderer> _letterMeshes = new List<MeshRenderer>();
         public OilFluid Oil = new OilFluid();
+        public OilDressing OilFoam = new OilDressing();
         public Transform OilGlint;
 
         string _currentSkin = "";
@@ -192,6 +194,13 @@ namespace DreidelRoyale.Visual
             // Lit, unlike the sides: a moving surface only reads as liquid if the light rolls
             // across it, and the sim writes real normals for exactly that.
             Oil.Build(Spinner, surfMat, sideMat, botMat);
+
+            // Foam, bubbles and thrown droplets, additive over the surface. A child of the
+            // spinner like the fluid itself, so it turns with the vessel rather than smearing.
+            OilFoam.Build(Spinner, MatUtil.Glow(Color.white, Tex.Radial(
+                new Stop(0f, Hex.To("rgba(255,246,214,1)")),
+                new Stop(0.45f, Hex.To("rgba(255,214,130,0.55)")),
+                new Stop(1f, Hex.To("rgba(255,190,90,0)")))));
 
             OilGlint = Fx.GlowSprite(Spinner, "rgba(255,205,90,0.8)", 0.55f, 0f);
             OilGlint.gameObject.SetActive(false);
@@ -370,6 +379,7 @@ namespace DreidelRoyale.Visual
 
             if (OilRing) OilRing.gameObject.SetActive(kind == "oil");
             Oil.SetActive(kind == "oil");
+            OilFoam.SetActive(kind == "oil");
             if (OilGlint) OilGlint.gameObject.SetActive(kind == "oil");
             if (FounderMark) FounderMark.gameObject.SetActive(kind == "founder");
             if (MenorahGroup) MenorahGroup.gameObject.SetActive(kind == "streaker");

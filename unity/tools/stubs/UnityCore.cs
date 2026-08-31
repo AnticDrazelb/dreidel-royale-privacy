@@ -184,6 +184,8 @@ namespace UnityEngine
         public void SetParent(Transform p){} public void SetParent(Transform p, bool w){}
         public Transform GetChild(int i){return null;}
         public Transform Find(string n){return null;}
+        public Vector3 InverseTransformDirection(Vector3 v){return v;}
+        public Vector3 TransformDirection(Vector3 v){return v;}
         public void SetAsFirstSibling(){} public void SetAsLastSibling(){} public void SetSiblingIndex(int i){} public int GetSiblingIndex(){return 0;}
         public void LookAt(Vector3 v){} public void LookAt(Transform t){}
         public void SetPositionAndRotation(Vector3 p, Quaternion r){}

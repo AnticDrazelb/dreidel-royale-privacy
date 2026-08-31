@@ -213,6 +213,7 @@ namespace DreidelRoyale.Visual
             _tumble = null; _recover = null;
             _mode = "spin";
             Dreidel.Oil.Disturb(0.5f + power * 0.8f);   // the launch throws it too
+            Dreidel.OilFoam.Splash(Dreidel.Oil, 0.35f + power * 0.5f);
         }
 
         public void StartRecover(float dur = 0.5f)
@@ -546,6 +547,7 @@ namespace DreidelRoyale.Visual
             _lastRotDeg = _rotDeg;
 
             Dreidel.Oil.Step(dt, Dreidel.Spinner, spinRate);
+            Dreidel.OilFoam.Step(dt, Dreidel.Oil, Camera.main);
 
             if (Dreidel.OilGlint)
             {
@@ -790,6 +792,7 @@ namespace DreidelRoyale.Visual
                         {
                             _tumble.Impacted = true;
                             Dreidel.Oil.Disturb(-0.9f - _tumble.Power * 1.4f);   // the oil feels the landing
+                            Dreidel.OilFoam.Splash(Dreidel.Oil, 0.6f + _tumble.Power * 0.7f);
                             DustBurst(Mathf.RoundToInt(8 + _tumble.Power * 14), _tumble.Power);
                             if (OnImpact != null) OnImpact(_tumble.Power);
                         }

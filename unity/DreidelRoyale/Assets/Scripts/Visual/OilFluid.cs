@@ -1,4 +1,5 @@
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace DreidelRoyale.Visual
 {
@@ -390,6 +391,55 @@ namespace DreidelRoyale.Visual
             _mesh.vertices = _verts;
             _mesh.normals = _norms;
             _mesh.uv = _uvs;                 // the depth channel moves with the waves
+        }
+
+        /// <summary>
+        /// How violently the surface is moving right now, 0..1.
+        ///
+        /// Read from the velocity field rather than from whatever last called Disturb, so a
+        /// slosh that is still ringing after the impact keeps its foam, and a surface that
+        /// has settled loses it — which is what the eye is actually tracking.
+        /// </summary>
+        public float Agitation
+        {
+            get
+            {
+                float sum = 0f;
+                for (int i = 0; i <= N; i++)
+                    for (int j = 0; j <= N; j++) sum += Mathf.Abs(_v[i, j]);
+                return Mathf.Clamp01(sum / ((N + 1) * (N + 1)) * 3.2f);
+            }
+        }
+
+        /// <summary>
+        /// The steepest slope anywhere on the surface. A breaking wave is a steep one, and
+        /// this is what decides where foam appears rather than a timer.
+        /// </summary>
+        public float PeakSlope
+        {
+            get
+            {
+                float worst = 0f;
+                for (int i = 1; i < N; i++)
+                    for (int j = 1; j < N; j++)
+                    {
+                        float dx = _h[i, j + 1] - _h[i, j - 1];
+                        float dz = _h[i + 1, j] - _h[i - 1, j];
+                        worst = Mathf.Max(worst, Mathf.Abs(dx) + Mathf.Abs(dz));
+                    }
+                return worst;
+            }
+        }
+
+        /// <summary>
+        /// A point on the surface picked at random, in vessel-local space — where a droplet
+        /// should be thrown from, or a bubble should surface.
+        /// </summary>
+        public Vector3 RandomSurfacePoint()
+        {
+            int i = Random.Range(0, N + 1), j = Random.Range(0, N + 1);
+            return new Vector3((j / (float)N - 0.5f) * 2f * Half, _h[i, j],
+                               (i / (float)N - 0.5f) * 2f * Half);
         }
 
         /// <summary>Where the glint should ride: the highest point of the surface.</summary>
