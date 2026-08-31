@@ -165,7 +165,7 @@ namespace DreidelRoyale.UI
             ih.childForceExpandWidth = false; ih.childControlWidth = false;
             ih.childForceExpandHeight = false; ih.childControlHeight = false;
 
-            _input = UIKit.Input(row.transform, "Say something...", ChatSystem.MaxLength, 288f, 40f);
+            _input = UIKit.Input(row.transform, "Say something…", ChatSystem.MaxLength, 288f, 40f);
             _input.textComponent.alignment = TextAnchor.MiddleLeft;
             if (_input.placeholder is Text) ((Text)_input.placeholder).alignment = TextAnchor.MiddleLeft;
             _input.onEndEdit.AddListener(_ =>

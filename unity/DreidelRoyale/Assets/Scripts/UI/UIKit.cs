@@ -303,6 +303,80 @@ namespace DreidelRoyale.UI
             return go;
         }
 
+        /// <summary>
+        /// The stylesheet's `.setup-acc` — a collapsible titled panel with a live one-line
+        /// summary on its head. Returns the component; add controls to its `Body`.
+        /// </summary>
+        public static Accordion Accordion(Transform parent, string title, float width = 340f)
+        {
+            var go = Node("accordion", parent);
+            Rect(go).sizeDelta = new Vector2(width, 48f);
+
+            var bg = go.AddComponent<Image>();
+            bg.sprite = Theme.Rounded(Theme.RMd);
+            bg.type = Image.Type.Sliced;
+            bg.color = Theme.Surface1;
+            Border(go.transform, Theme.Hairline, Theme.RMd);
+
+            var col = go.AddComponent<VerticalLayoutGroup>();
+            col.spacing = 0f;
+            col.childAlignment = TextAnchor.UpperCenter;
+            col.childForceExpandWidth = false; col.childForceExpandHeight = false;
+            col.childControlWidth = false; col.childControlHeight = false;
+            go.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            // The head is hand-anchored rather than laid out: the summary has to take
+            // whatever the title and chevron leave, and a HorizontalLayoutGroup that does not
+            // control its children's width cannot express that.
+            var head = Node("head", go.transform);
+            Rect(head).sizeDelta = new Vector2(width, 46f);
+            var hit = head.AddComponent<Image>();
+            hit.color = new Color(0, 0, 0, 0);            // invisible, but the tap target
+            var btn = head.AddComponent<Button>();
+            btn.targetGraphic = hit;
+            btn.transition = Selectable.Transition.None;
+
+            var titleTxt = Label(head.transform, title.ToUpper(), 12, Theme.Sub,
+                                 TextAnchor.MiddleLeft, false, FontStyle.Bold);
+            Side(titleTxt, 16f, width - 16f - 132f);
+
+            var sum = Label(head.transform, "", 12, Theme.Gold, TextAnchor.MiddleRight);
+            sum.verticalOverflow = VerticalWrapMode.Truncate;
+            Side(sum, width - 16f - 118f, 34f);
+
+            var chev = Label(head.transform, "\u25BC", 11, Theme.Sub);
+            var crt = chev.rectTransform;
+            crt.anchorMin = new Vector2(1f, 0.5f); crt.anchorMax = new Vector2(1f, 0.5f);
+            crt.pivot = new Vector2(0.5f, 0.5f);
+            crt.anchoredPosition = new Vector2(-18f, 0f);
+            crt.sizeDelta = new Vector2(20f, 20f);
+
+            var bodyGo = Node("body", go.transform);
+            Rect(bodyGo).sizeDelta = new Vector2(width, 10f);
+            var bv = bodyGo.AddComponent<VerticalLayoutGroup>();
+            bv.spacing = 6f;
+            bv.padding = new RectOffset(12, 12, 4, 14);
+            bv.childAlignment = TextAnchor.UpperCenter;
+            bv.childForceExpandWidth = false; bv.childForceExpandHeight = false;
+            bv.childControlWidth = false; bv.childControlHeight = false;
+            bodyGo.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var acc = go.AddComponent<Accordion>();
+            acc.Wire(bodyGo.transform, bodyGo, sum, chev);
+            btn.onClick.AddListener(acc.Toggle);   // the tick belongs to Accordion, not here
+            return acc;
+        }
+
+        /// <summary>Left/right inset anchoring, the way the stylesheet reasons about a row.</summary>
+        static void Side(Text t, float left, float right)
+        {
+            var rt = t.rectTransform;
+            rt.anchorMin = new Vector2(0f, 0.5f); rt.anchorMax = new Vector2(1f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = new Vector2(left, -11f);
+            rt.offsetMax = new Vector2(-right, 11f);
+        }
+
         /// <summary>The "small caps, wide tracking" section label the screens use.</summary>
         public static Text SectionLabel(Transform parent, string text)
         {

@@ -32,6 +32,7 @@ namespace DreidelRoyale.Net
         Text _quickStatus;
 
         Transform _modeRow, _lobbyRulesPicker, _lobbyAntePicker;
+        Accordion _lobbyRules;
         Text _lobbyAnteLabel;
         Text _modeNote, _codeTag, _codeHint, _nameTag;
 
@@ -73,7 +74,7 @@ namespace DreidelRoyale.Net
             UIKit.Stretch(_modeNote.gameObject, 12f);
             _nameInput.text = Store.Get("drdl-name") ?? "";
 
-            UIKit.SectionLabel(c, "Your dreidel - earned through play");
+            UIKit.SectionLabel(c, "Your dreidel · earned through play");
             _nameSkinPicker = UIKit.Grid(c, new Vector2(96, 92)).transform;
 
             UIKit.Spacer(c, 6f);
@@ -103,7 +104,7 @@ namespace DreidelRoyale.Net
                     return;
                 }
                 Sfx.Play("tick");
-                _joinStatus.text = _online ? "Connecting..." : "Looking for the table...";
+                _joinStatus.text = _online ? "Connecting…" : "Looking for the table…";
 
                 // An IP address is a Wi-Fi-only escape hatch, so typing one picks that route
                 // regardless of the switch - it can't mean anything else.
@@ -139,7 +140,7 @@ namespace DreidelRoyale.Net
 
             UIKit.Btn(c, "Share Invite", UIKit.BtnKind.Ghost, ShareInvite, 180f, 42f, 14);
 
-            _lobbyStatus = UIKit.Label(c, "Initialising...", 13, Theme.Sub);
+            _lobbyStatus = UIKit.Label(c, "Initialising…", 13, Theme.Sub);
             UIKit.SetSize(_lobbyStatus, 340, 24);
 
             var listGo = UIKit.Node("lobby-list", c);
@@ -154,13 +155,17 @@ namespace DreidelRoyale.Net
             listGo.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             _lobbyList = listGo.transform;
 
-            UIKit.SectionLabel(c, "Table - tap to vote");
+            UIKit.SectionLabel(c, "Table · tap to vote");
             _lobbyEnvPicker = UIKit.Grid(c, new Vector2(96, 92)).transform;
 
-            UIKit.SectionLabel(c, "Game style - host sets");
-            _lobbyRulesPicker = UIKit.Row(c, 6f, 44f).transform;
-            _lobbyAnteLabel = UIKit.SectionLabel(c, "Starting ante");
-            _lobbyAntePicker = UIKit.Row(c, 6f, 44f).transform;
+            // Stakes fold away behind their own summary. The lobby already spends its height
+            // on the seat list and six tables; left open, this pushes Start off a phone.
+            _lobbyRules = UIKit.Accordion(c, "Rules");
+            var rb = _lobbyRules.Body;
+            UIKit.SectionLabel(rb, "Game style · host sets");
+            _lobbyRulesPicker = UIKit.Row(rb, 6f, 44f).transform;
+            _lobbyAnteLabel = UIKit.SectionLabel(rb, "Starting ante");
+            _lobbyAntePicker = UIKit.Row(rb, 6f, 44f).transform;
 
             UIKit.Spacer(c, 6f);
             _startBtn = UIKit.Btn(c, "Start Game", UIKit.BtnKind.Primary, () =>
@@ -168,14 +173,14 @@ namespace DreidelRoyale.Net
                 Sfx.Play("tick");
                 Net.StartCountdown();
             });
-            _lobbyWait = UIKit.Label(c, "Waiting for host...", 13, Theme.Sub);
+            _lobbyWait = UIKit.Label(c, "Waiting for host…", 13, Theme.Sub);
             UIKit.SetSize(_lobbyWait, 340, 24);
 
             UIKit.Btn(c, "Leave Room", UIKit.BtnKind.Ghost, () =>
             {
                 Sfx.Play("tick"); Sfx.Buzz(10);
                 // Same teardown as quitting a game: tell anyone connected before going.
-                if (Net.IsHost && Net.PlayerCount > 1) UI.Toast("Closing the table...");
+                if (Net.IsHost && Net.PlayerCount > 1) UI.Toast("Closing the table…");
                 Net.LeaveEverything();
                 GC.IsLocalGame = true;
                 UI.Show("landing");
@@ -186,7 +191,7 @@ namespace DreidelRoyale.Net
         {
             var h = UIKit.Label(c, "Quick Match", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 46);
-            _quickStatus = UIKit.Label(c, "Searching for open tables...", 14, Theme.Sub);
+            _quickStatus = UIKit.Label(c, "Searching for open tables…", 14, Theme.Sub);
             UIKit.SetSize(_quickStatus, 340, 40);
 
             var spinner = UIKit.Node("spinner", c);
@@ -235,7 +240,7 @@ namespace DreidelRoyale.Net
             _reconnectTitle = UIKit.Label(col.transform, "Reconnecting", 32, Hex.To("#f4f6ff"),
                                           TextAnchor.MiddleCenter, true);
             UIKit.SetSize(_reconnectTitle, 320, 44);
-            _reconnectMsg = UIKit.Label(col.transform, "Connection lost - trying to rejoin...", 14, Theme.Sub);
+            _reconnectMsg = UIKit.Label(col.transform, "Connection lost — trying to rejoin…", 14, Theme.Sub);
             UIKit.SetSize(_reconnectMsg, 320, 44);
             _reconnectCountdown = UIKit.Label(col.transform, "", 14, Theme.Gold,
                                               TextAnchor.MiddleCenter, false, FontStyle.Bold);
@@ -363,7 +368,7 @@ namespace DreidelRoyale.Net
             if (_nameTag != null)
                 _nameTag.text = string.IsNullOrEmpty(_prefillCode)
                     ? "Pick your table name"
-                    : "Joining table <color=#f2c14e><b>" + _prefillCode + "</b></color> - pick your name";
+                    : "Joining table <color=#f2c14e><b>" + _prefillCode + "</b></color> — pick your name";
 
             // Quick Match asks the local network who is open, and only a Wi-Fi table can
             // answer that, so it has no choice to offer.
@@ -391,7 +396,7 @@ namespace DreidelRoyale.Net
                                         : "Ask the host for their 4 letters";
             if (_codeHint != null)
                 _codeHint.text = _online
-                    ? "You can be anywhere - the host doesn't need to be on your Wi-Fi."
+                    ? "You can be anywhere — the host doesn't need to be on your Wi-Fi."
                     : "On a network that blocks discovery, type the host's IP address instead of the code.";
             if (_joinStatus != null) _joinStatus.text = "";
         }
@@ -425,7 +430,7 @@ namespace DreidelRoyale.Net
             else if (_pendingMode == "QUICK")
             {
                 UI.Show("net-quick");
-                SetQuickStatus("Searching for open tables...");
+                SetQuickStatus("Searching for open tables…");
                 Net.QuickMatch(n);
             }
             else UI.Show("net-code");
@@ -473,8 +478,8 @@ namespace DreidelRoyale.Net
         {
             Sfx.Play("tick");
             var code = Net.RoomCodeText ?? "";
-            if (string.IsNullOrEmpty(code)) { UI.Toast("No room code yet - one moment", true); return; }
-            var body = "Join my Dreidel Royale table - the code is " + code + "."
+            if (string.IsNullOrEmpty(code)) { UI.Toast("No room code yet — one moment", true); return; }
+            var body = "Join my Dreidel Royale table — the code is " + code + "."
                      + "\n\nOpen Dreidel Royale, tap Join, and enter " + code + ".";
 
             if (IsOnlineTable())
@@ -567,8 +572,20 @@ namespace DreidelRoyale.Net
 
             if (_lobbyAnteLabel != null)
                 _lobbyAnteLabel.text = (sel == "classic"
-                    ? "Starting ante - fixed all game"
-                    : "Starting ante - rises every " + Rules.RiseEveryFor(sel) + " rounds").ToUpper();
+                    ? "Starting ante · fixed all game"
+                    : "Starting ante · rises every " + Rules.RiseEveryFor(sel) + " rounds").ToUpper();
+
+            // The head has to say what the collapsed panel is hiding, or folding it away
+            // just costs the guest the one fact they came for.
+            if (_lobbyRules != null)
+                _lobbyRules.SetSummary(RulesLabel(sel) + " · ante " + ante);
+        }
+
+        /// <summary>The short form the collapsed head uses - "Rising Stakes · ante 1" would
+        /// not fit beside the title, and the web build shortens it the same way.</summary>
+        static string RulesLabel(string id)
+        {
+            return id == "classic" ? "Classic" : id == "sudden" ? "Sudden" : "Rising";
         }
 
         public void RefreshLobby()
@@ -580,7 +597,7 @@ namespace DreidelRoyale.Net
             var players = GC.G.Players;
             if (players.Count == 0)
             {
-                var t = UIKit.Label(_lobbyList, "Waiting for players...", 13, new Color(0.32f, 0.36f, 0.55f));
+                var t = UIKit.Label(_lobbyList, "Waiting for players…", 13, new Color(0.32f, 0.36f, 0.55f));
                 UIKit.SetSize(t, 300, 26);
                 t.gameObject.AddComponent<LayoutElement>().preferredHeight = 26;
             }

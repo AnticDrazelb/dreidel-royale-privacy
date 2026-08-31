@@ -94,7 +94,7 @@ namespace DreidelRoyale
         {
             _ui.RefreshPickers();
             if (!celebrate) { _ui.Toast("Purchases restored"); return; }
-            _ui.Toast("Full Collection unlocked - thank you!");
+            _ui.Toast("Full Collection unlocked — thank you!");
             Sfx.Play("coin");
             Sfx.Buzz(40, 60, 40);
             try { _ui.Fx.Confetti(Screen.width / 2f, Screen.height * 0.5f, 90, 16); } catch { }
@@ -115,7 +115,7 @@ namespace DreidelRoyale
                 yield return wait;
                 bool online = Application.internetReachability != NetworkReachability.NotReachable;
                 if (wasOnline && !online && _gc.Net != null && _gc.Net.Active)
-                    _ui.Toast("Network lost - you may drop from the game", true);
+                    _ui.Toast("Internet lost — you may drop from the game", true);
                 wasOnline = online;
             }
         }

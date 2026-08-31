@@ -123,7 +123,7 @@ namespace DreidelRoyale.Net
 
             RememberTransportKind(transport);
             Attach(transport);
-            Screens.ShowLobby(RoomCodeText, true, "Opening the table...");
+            Screens.ShowLobby(RoomCodeText, true, "Opening the table…");
             transport.Host(RoomCodeText);
         }
 
@@ -141,7 +141,7 @@ namespace DreidelRoyale.Net
                 }
                 GC.G.Players.Add(new Player("HOST", MyName, Consts.StartCoins) { Skin = GC.MySkinChoice });
                 Screens.SetLobbyStatus("ONLINE", true);
-                Screens.ShowLobby(RoomCodeText, true, "Share the code - friends join from their phones");
+                Screens.ShowLobby(RoomCodeText, true, "Share the code — friends join from their phones");
                 Screens.RefreshLobby();
                 StartHeartbeat();
             }
@@ -158,7 +158,7 @@ namespace DreidelRoyale.Net
                 StopMigrationTimers();
                 _reconnecting = false; _reconnectTries = 0;
                 Screens.HideReconnect();
-                Screens.ShowLobby(_joinedCode, false, "Waiting for the host...");
+                Screens.ShowLobby(_joinedCode, false, "Waiting for the host…");
                 Screens.SetLobbyStatus("CONNECTED", true);
                 StartHeartbeat();
             }
@@ -181,7 +181,7 @@ namespace DreidelRoyale.Net
             {
                 // Nobody was open, so become the table other people find.
                 _quickMatching = false;
-                Screens.SetQuickStatus("No open tables - starting one...");
+                Screens.SetQuickStatus("No open tables — opening one for you…");
                 HostGame(new LanTransport(), MyName);
                 return;
             }
@@ -236,7 +236,7 @@ namespace DreidelRoyale.Net
             {
                 // don't delete players mid-game - keep their seat so they can reconnect
                 gone.Disconnected = true;
-                UI.Toast(gone.Name + " dropped - seat held for reconnect", true);
+                UI.Toast(gone.Name + " dropped — seat held for reconnect", true);
                 Chat.AddNotice(gone.Name + " dropped");
                 var cur = GC.G.Current;
                 if (cur != null && cur.Id == peer.Id) AdvanceTurnPastDisconnected();
@@ -650,7 +650,7 @@ namespace DreidelRoyale.Net
                 {
                     if (s.ante > old.ante)
                     {
-                        UI.Toast("Stakes rise - ante is now " + s.ante);
+                        UI.Toast("▲ Stakes rise — ante is now " + s.ante);
                         Sfx.Play("go"); Sfx.Buzz(30, 40, 60);
                     }
                     for (int i = 0; i < s.players.Count; i++)
@@ -787,10 +787,10 @@ namespace DreidelRoyale.Net
             Screens.ShowReconnect(
                 deliberate ? "Host Left" : "Host Disconnected",
                 relayed ? (deliberate ? "The host closed the table."
-                                      : "Lost the host - trying to get back in...")
-                    : !canMigrate ? "Waiting for the host to come back..."
-                    : deliberate ? "The host left - choosing a new host..."
-                    : "Connection to the host lost - reconnecting... a new host will be chosen shortly.",
+                                      : "Lost the host — trying to get back in…")
+                    : !canMigrate ? "Waiting for the host to come back…"
+                    : deliberate ? "The host left — choosing a new host…"
+                    : "Connection to the host lost — reconnecting… a new host will be chosen shortly.",
                 canMigrate);
 
             StartCoroutine(DelayedReconnect(0.6f));       // the old host may return
@@ -831,7 +831,7 @@ namespace DreidelRoyale.Net
             int left = secs;
             while (left > 0)
             {
-                Screens.SetReconnectCountdown("Returning to menu in " + left + "s...");
+                Screens.SetReconnectCountdown("Returning to menu in " + left + "s…");
                 yield return new WaitForSeconds(1f);
                 left--;
                 if (!_reconnecting) yield break;
@@ -892,7 +892,7 @@ namespace DreidelRoyale.Net
 
             _takeoverInProgress = true;
             if (_autoTakeover != null) { StopCoroutine(_autoTakeover); _autoTakeover = null; }
-            Screens.SetReconnectMessage("Claiming the table...");
+            Screens.SetReconnectMessage("Claiming the table…");
 
             Attach(NewTransportLikeCurrent());
             Transport.Host(_joinedCode);
@@ -936,7 +936,7 @@ namespace DreidelRoyale.Net
             // everyone else must find their way back to the new chair
             foreach (var pp in GC.G.Players) if (pp.Id != MySeatId && !pp.Forfeited) pp.Disconnected = true;
 
-            UI.Toast("You are the new host - the table is yours");
+            UI.Toast("You are the new host — the table is yours");
             Sfx.Play("go"); Sfx.Buzz(30, 50, 80);
 
             if (GC.G.Status == GameStatus.Playing || GC.G.Status == GameStatus.GameOver)
@@ -950,7 +950,7 @@ namespace DreidelRoyale.Net
             }
             else
             {
-                Screens.ShowLobby(RoomCodeText, true, "Share the code - friends join from their phones");
+                Screens.ShowLobby(RoomCodeText, true, "Share the code — friends join from their phones");
                 Screens.SetLobbyStatus("ONLINE", true);
                 Screens.RefreshLobby();
             }

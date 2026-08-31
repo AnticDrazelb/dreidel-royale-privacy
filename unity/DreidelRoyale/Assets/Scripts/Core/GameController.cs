@@ -264,7 +264,7 @@ namespace DreidelRoyale.Core
         {
             // a plain wait, not one of the spin's timers, so the next spin's flush can't eat it
             yield return new WaitForSeconds(1.4f);
-            UI.Toast("Stakes rise — ante is now " + target);
+            UI.Toast("▲ Stakes rise — ante is now " + target);
             Sfx.Play("go");
             Sfx.Buzz(30, 40, 60);
         }
@@ -871,7 +871,7 @@ namespace DreidelRoyale.Core
                 UI.ShowGame();
                 Hud.ResetMotion();
                 Hud.Refresh();
-                UI.Toast("Game resumed - your table awaits");
+                UI.Toast("Game resumed — your table awaits");
                 MaybeCpuTurn();
                 return true;
             }

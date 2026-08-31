@@ -124,8 +124,8 @@ namespace DreidelRoyale.Net
             // that never answers) fails visibly instead of leaving the lobby spinning.
             if (Time.realtimeSinceStartup - _phaseStart > SetupTimeout)
             {
-                Fail(_asHost ? "Couldn't open an online table - check your connection."
-                             : "Couldn't reach that table - check the code and your connection.");
+                Fail(_asHost ? "Couldn't open an online table — check your connection."
+                             : "Couldn't reach that table — check the code and your connection.");
                 return;
             }
 

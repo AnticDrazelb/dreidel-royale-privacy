@@ -209,7 +209,7 @@ namespace DreidelRoyale.UI
 
             UIKit.Spacer(c, 6f);
             var verRow = UIKit.Row(c, 6f, 18f);
-            var ver = UIKit.Label(verRow.transform, "GELT EDITION - V1.0 -", 10,
+            var ver = UIKit.Label(verRow.transform, "GELT EDITION · V1.0 ·", 10,
                                   new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.7f));
             UIKit.SetSize(ver, 150, 16);
             // A reachable privacy policy is a store requirement on both platforms, so the
@@ -222,7 +222,7 @@ namespace DreidelRoyale.UI
         {
             var h = UIKit.Label(c, "Single Player", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 46);
-            var tag = UIKit.Label(c, "Play against the house - everyone starts with 10 gelt", 14, Theme.Sub);
+            var tag = UIKit.Label(c, "Play against the house — everyone starts with 10 gelt", 14, Theme.Sub);
             UIKit.SetSize(tag, 340, 34);
 
             var pager = c.gameObject.AddComponent<Pager>();
@@ -249,7 +249,7 @@ namespace DreidelRoyale.UI
             var p2 = pager.AddPage(c).transform;
             UIKit.SectionLabel(p2, "Choose your table");
             _envPickerCpu = UIKit.Grid(p2, new Vector2(96, 92)).transform;
-            UIKit.SectionLabel(p2, "Your dreidel - earned through play");
+            UIKit.SectionLabel(p2, "Your dreidel · earned through play");
             _skinPickerCpu = UIKit.Grid(p2, new Vector2(96, 92)).transform;
             UIKit.Spacer(p2, 6f);
             UIKit.Btn(p2, "Start", UIKit.BtnKind.Primary, () =>
@@ -304,7 +304,7 @@ namespace DreidelRoyale.UI
             var p2 = localPager.AddPage(c).transform;
             UIKit.SectionLabel(p2, "Choose your table");
             _envPickerLocal = UIKit.Grid(p2, new Vector2(96, 92)).transform;
-            UIKit.SectionLabel(p2, "Table's dreidel - earned through play");
+            UIKit.SectionLabel(p2, "Table's dreidel · earned through play");
             _skinPickerLocal = UIKit.Grid(p2, new Vector2(96, 92)).transform;
             UIKit.Spacer(p2, 6f);
             UIKit.Btn(p2, "Start", UIKit.BtnKind.Primary, () =>
@@ -321,7 +321,7 @@ namespace DreidelRoyale.UI
             var h = UIKit.Label(c, "Decision Dreidel", 32, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 44);
             var blurb = UIKit.Label(c,
-                "Label the four faces - dares, chores, dinner, who goes first - then spin and let it settle. "
+                "Label the four faces — dares, chores, dinner, who goes first — then spin and let it settle. "
                 + "<color=#f2c14e><b>No gelt, no pot.</b></color>", 13, Theme.Sub);
             UIKit.SetSize(blurb, 340, 54);
 
@@ -366,7 +366,7 @@ namespace DreidelRoyale.UI
         {
             var h = UIKit.Label(c, "Records", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 46);
-            var tag = UIKit.Label(c, "Lifetime - this device", 14, Theme.Sub);
+            var tag = UIKit.Label(c, "Lifetime · this device", 14, Theme.Sub);
             UIKit.SetSize(tag, 340, 24);
 
             _recordsStats = UIKit.Grid(c, new Vector2(100, 74), 8f, 330f).transform;
@@ -400,12 +400,12 @@ namespace DreidelRoyale.UI
         {
             var h = UIKit.Label(c, "Your Dreidel", 34, Hex.To("#f4f6ff"), TextAnchor.MiddleCenter, true);
             UIKit.SetSize(h, 360, 46);
-            var tag = UIKit.Label(c, "Pick a new dreidel - you'll drop straight back into the game", 14, Theme.Sub);
+            var tag = UIKit.Label(c, "Pick a new dreidel — you'll drop straight back into the game", 14, Theme.Sub);
             UIKit.SetSize(tag, 340, 34);
 
             UIKit.SectionLabel(c, "Dreidel");
             _skinPickerChange = UIKit.Grid(c, new Vector2(96, 92)).transform;
-            UIKit.SectionLabel(c, "Table - can't change mid-game");
+            UIKit.SectionLabel(c, "Table · can't change mid-game");
             _envPickerChange = UIKit.Grid(c, new Vector2(96, 92)).transform;
 
             UIKit.Spacer(c, 6f);
@@ -508,7 +508,7 @@ namespace DreidelRoyale.UI
                 Consts.RefreshSides();
                 View.RebuildLetters();
                 Sfx.Play("tick");
-            }, 300f, "\u05E4 Po - else \u05E9 Sham");
+            }, 300f, "\u05E4 Po · else \u05E9 Sham");
 
             UIKit.Spacer(col.transform, 6f);
             BuildArControls(col.transform);
@@ -597,7 +597,7 @@ namespace DreidelRoyale.UI
             _shake = 0f;    // a charge left mid-flight would freeze the board off-centre
 
             if (_arHintBox != null) _arHintBox.gameObject.SetActive(on && !placed);
-            if (on && placed) Toast("Drag to turn - pinch to resize");
+            if (on && placed) Toast("Drag to turn · pinch to resize");
             if (_arBoardLabel != null && Ar != null)
                 _arBoardLabel.text = Ar.TableMode == "board" ? "Board: On" : "Board: Off";
         }
@@ -608,7 +608,7 @@ namespace DreidelRoyale.UI
             bool on = Ar.IsOn;
             _arLabel.text = on ? "Exit AR" : "Play on your table";
             _arSub.text = on ? "Back to the full-screen board"
-                             : Ar.Available ? "Full tracking - walk around the board"
+                             : Ar.Available ? "Full tracking — walk around the board"
                                             : "Put the board in the room with you";
             if (_arWhy != null)
             {
@@ -632,7 +632,7 @@ namespace DreidelRoyale.UI
             img.color = new Color(Theme.Night.r, Theme.Night.g, Theme.Night.b, 0.82f);
             img.raycastTarget = false;
             UIKit.Border(go.transform, new Color(Theme.Gold.r, Theme.Gold.g, Theme.Gold.b, 0.4f), 20f);
-            _arHint = UIKit.Label(go.transform, "Looking for a flat surface...", 13, Theme.GoldHot);
+            _arHint = UIKit.Label(go.transform, "Looking for a flat surface…", 13, Theme.GoldHot);
             UIKit.Stretch(_arHint.gameObject, 10f);
             go.SetActive(false);
         }
@@ -647,7 +647,7 @@ namespace DreidelRoyale.UI
             bool want = Ar.IsOn && !Ar.IsPlaced;
             if (_arHintBox.gameObject.activeSelf != want) _arHintBox.gameObject.SetActive(want);
             if (!want) return;
-            _arHint.text = Ar.HasSurface ? "Tap to set the board down" : "Looking for a flat surface...";
+            _arHint.text = Ar.HasSurface ? "Tap to set the board down" : "Looking for a flat surface…";
             _arHint.color = Ar.HasSurface ? Theme.GoldHot : Theme.Sub;
         }
 
@@ -675,24 +675,24 @@ namespace DreidelRoyale.UI
 
             var t = UIKit.Label(card.transform, "How to Play", 26, Theme.Gold, TextAnchor.MiddleCenter, true);
             UIKit.SetSize(t, 320, 34);
-            var sub = UIKit.Label(card.transform, "Antes rise as the game goes on - hold to charge, release to spin",
+            var sub = UIKit.Label(card.transform, "Antes rise as the game goes on · hold to charge, release to spin",
                                   12, Theme.Sub);
             UIKit.SetSize(sub, 320, 32);
 
-            AddHowToRow(card.transform, Consts.Sides[0].Char, "NUN", "<i>nisht</i> - nothing happens.");
-            AddHowToRow(card.transform, Consts.Sides[1].Char, "GIMEL", "<i>gants</i> - sweep the whole pot.");
-            AddHowToRow(card.transform, Consts.Sides[2].Char, "HEI", "<i>halb</i> - take half the pot.");
+            AddHowToRow(card.transform, Consts.Sides[0].Char, "NUN", "<i>nisht</i> — nothing happens.");
+            AddHowToRow(card.transform, Consts.Sides[1].Char, "GIMEL", "<i>gants</i> — sweep the whole pot.");
+            AddHowToRow(card.transform, Consts.Sides[2].Char, "HEI", "<i>halb</i> — take half the pot.");
             var fourth = AddHowToRow(card.transform, Consts.Fourth().Char, Consts.Fourth().Name,
-                                     "<i>shtel</i> - put one in the pot.");
+                                     "<i>shtel</i> — put one in the pot.");
             _howtoFourthGlyph = fourth[0]; _howtoFourthName = fourth[1]; _howtoFourthDesc = fourth[2];
 
             _howtoAcro = UIKit.Label(card.transform,
-                "The letters spell <b>Nes Gadol Haya Sham</b> - \"a great miracle happened there.\"",
+                "The letters spell <b>Nes Gadol Haya Sham</b> — \"a great miracle happened there.\"",
                 12, Theme.Sub);
             UIKit.SetSize(_howtoAcro, 320, 34);
             var note = UIKit.Label(card.transform,
                 "Play actions come from the Yiddish: nisht / gants / halb / shtel. "
-                + "Run out of gelt and you're out - last player holding gelt wins.", 12,
+                + "Run out of gelt and you're out — last player holding gelt wins.", 12,
                 new Color(Theme.Sub.r, Theme.Sub.g, Theme.Sub.b, 0.85f));
             UIKit.SetSize(note, 320, 44);
 
@@ -786,7 +786,7 @@ namespace DreidelRoyale.UI
         {
             int round = GC.SavedRound();
             _resumeBtn.gameObject.SetActive(round > 0);
-            if (round > 0 && _resumeLabel != null) _resumeLabel.text = "Resume Game - Round " + round;
+            if (round > 0 && _resumeLabel != null) _resumeLabel.text = "Resume Game · Round " + round;
         }
 
         IEnumerator ScreenIn(RectTransform rt)
@@ -859,11 +859,11 @@ namespace DreidelRoyale.UI
             _howtoFourthGlyph.text = f.Char;
             _howtoFourthName.text = f.Name;
             _howtoFourthDesc.text = Consts.IsraelMode
-                ? "<i>pei</i> - put one in the pot."
-                : "<i>shtel</i> - put one in the pot.";
+                ? "<i>pei</i> — put one in the pot."
+                : "<i>shtel</i> — put one in the pot.";
             _howtoAcro.text = Consts.IsraelMode
-                ? "The letters spell <b>Nes Gadol Haya Po</b> - \"a great miracle happened here.\""
-                : "The letters spell <b>Nes Gadol Haya Sham</b> - \"a great miracle happened there.\"";
+                ? "The letters spell <b>Nes Gadol Haya Po</b> — \"a great miracle happened here.\""
+                : "The letters spell <b>Nes Gadol Haya Sham</b> — \"a great miracle happened there.\"";
         }
 
         void OpenCustom()
@@ -1007,7 +1007,7 @@ namespace DreidelRoyale.UI
             if (S.games == 0)
             {
                 // An empty grid of zeroes reads as a bug. One line reads as an invitation.
-                var empty = UIKit.Label(_recordsStats, "No games yet - your story starts with a spin.",
+                var empty = UIKit.Label(_recordsStats, "No games yet — your story starts with a spin.",
                                         13, Theme.Sub, TextAnchor.MiddleCenter);
                 UIKit.SetSize(empty, 320, 60);
             }
@@ -1029,7 +1029,7 @@ namespace DreidelRoyale.UI
             {
                 int skins = Unlocks.Skins.Count(d => Unlocks.SkinUnlocked(d, S));
                 int envs = EnvDefs.All.Count(kv => Unlocks.EnvUnlocked(kv.Key, S));
-                _collectionLine.text = string.Format("Collection - {0}/{1} dreidels - {2}/{3} tables",
+                _collectionLine.text = string.Format("Collection · {0}/{1} dreidels · {2}/{3} tables",
                                                      skins, Unlocks.Skins.Count, envs, EnvDefs.All.Count);
                 _collectionLine.gameObject.SetActive(S.games > 0);
             }
@@ -1288,7 +1288,7 @@ namespace DreidelRoyale.UI
             AddStat(_winStats, spins.ToString(), "Spins");
             AddStat(_winStats, gimels.ToString(), "Gimels");
             AddStat(_winStats, bestSweep.ToString(), "Best Sweep");
-            _winLifetime.text = string.Format("{0} played - {1}W - {2}L - best sweep {3}",
+            _winLifetime.text = string.Format("{0} played · {1}W · {2}L · best sweep {3}",
                                               S.games, S.wins, S.losses, S.bestSweep);
             _winner.gameObject.SetActive(true);
         }
@@ -1343,7 +1343,7 @@ namespace DreidelRoyale.UI
             if (GC.G != null && GC.G.Status == GameStatus.Playing
                 || (GC.Net != null && GC.Net.Active))
             {
-                Toast("Finish this game first - invite code was " + code, true);
+                Toast("Finish this game first — invite code was " + code, true);
                 return;
             }
             if (NetScreens != null) NetScreens.BeginJoinWithCode(code);
@@ -1369,7 +1369,7 @@ namespace DreidelRoyale.UI
             Sfx.Play("tick");
             var st = GC.G.Stats;
             var body = "Dreidel Royale \U0001FA99\n"
-                     + string.Format("\U0001F3C6 {0} wins in {1} rounds - best sweep {2} gelt\n",
+                     + string.Format("\U0001F3C6 {0} wins in {1} rounds · best sweep {2} gelt\n",
                                      _winnerName.text, GC.G.Round, st.BiggestSweep)
                      + NativeShare.HistoryEmoji(st.History);
             if (!NativeShare.Share("Dreidel Royale", body))
