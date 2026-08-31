@@ -47,14 +47,9 @@ namespace Unity.Services.Relay
     using Unity.Services.Relay.Models;
     using Unity.Networking.Transport.Relay;
 
-    /// Relay 1.1 exposes the conversion as extensions rather than RelayServerData constructors.
-    public static class RelayServiceExtensions
-    {
-        public static RelayServerData ToRelayServerData(this Allocation a, string connectionType)
-        { return default(RelayServerData); }
-        public static RelayServerData ToRelayServerData(this JoinAllocation a, string connectionType)
-        { return default(RelayServerData); }
-    }
+    // There is deliberately no ToRelayServerData extension here. Relay 1.1 does not have
+    // one — the conversion is `new RelayServerData(allocation, connectionType)` — and the
+    // stub that claimed otherwise is what let four builds ship a call the editor rejects.
 
     public interface IRelayService
     {
@@ -164,11 +159,14 @@ namespace Unity.Networking.Transport.Utilities
     /// (The real ones take `ref this` and return `ref NetworkSettings`; mcs cannot express
     /// that C# 7.2 form, and the returned reference is discarded at every call site here.)
     /// </summary>
-    public static class PipelineParameterExtensions
+    public static class FragmentationStageParameterExtensions
     {
         public static NetworkSettings WithFragmentationStageParameters(
             this NetworkSettings settings, int payloadCapacity = 4 * 1024) { return settings; }
+    }
 
+    public static class ReliableStageParameterExtensions
+    {
         public static NetworkSettings WithReliableStageParameters(
             this NetworkSettings settings, int windowSize = 32) { return settings; }
     }

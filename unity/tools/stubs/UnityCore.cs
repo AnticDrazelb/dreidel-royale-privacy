@@ -144,7 +144,9 @@ namespace UnityEngine
         public T GetComponentInChildren<T>(){return default(T);}
         public T[] GetComponentsInChildren<T>(){return new T[0];}
         public T[] GetComponentsInChildren<T>(bool inc){return new T[0];}
-        public T AddComponent<T>() where T : Component {return default(T);}
+        // No AddComponent here: real Unity puts it on GameObject only. A stub that offered
+        // it on Component would compile `someComponent.AddComponent<T>()` and let the editor
+        // reject it — exactly the class of mistake these stubs exist to prevent.
     }
     public class Behaviour : Component { public bool enabled; public bool isActiveAndEnabled; }
     public class MonoBehaviour : Behaviour {
@@ -155,7 +157,6 @@ namespace UnityEngine
         public void StopCoroutine(string s){}
         public void StopAllCoroutines(){}
         public void Invoke(string s, float t){}
-        public static T FindObjectOfType<T>() where T : Object {return default(T);}
     }
     public class Coroutine {}
     public class YieldInstruction {}
