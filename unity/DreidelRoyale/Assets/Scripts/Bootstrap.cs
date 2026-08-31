@@ -165,11 +165,11 @@ namespace DreidelRoyale
             _cam.fieldOfView = 38f;
             _cam.nearClipPlane = 0.1f;
             _cam.farClipPlane = 60f;
-            // ToneMapper turns HDR on and owns it: an ACES curve applied to an already-clamped
+            // PostFx turns HDR on and owns it: an ACES curve applied to an already-clamped
             // image cannot recover a highlight, it can only darken one.
             _cam.allowHDR = true;
             go.AddComponent<AudioListener>();
-            go.AddComponent<ToneMapper>();
+            go.AddComponent<PostFx>();
         }
 
         void BuildAudio()
@@ -315,6 +315,9 @@ namespace DreidelRoyale
                 Sfx.Play("land", power);
                 Sfx.Buzz(Mathf.RoundToInt(30 + power * 60), 40, 20);
                 _ui.ImpactShake(3f + power * 9f);
+                // A hard landing fringes the edges of the frame for a couple of frames. It is
+                // gone before it reads as an effect - which is the point; it reads as force.
+                if (Visual.PostFx.I != null) Visual.PostFx.I.Impact(0.002f + power * 0.006f);
                 _gc.FireImpact(power);
             };
 

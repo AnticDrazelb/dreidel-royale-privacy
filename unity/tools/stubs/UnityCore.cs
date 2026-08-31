@@ -160,6 +160,7 @@ namespace UnityEngine
     public class Coroutine {}
     public class YieldInstruction {}
     public class WaitForSeconds : YieldInstruction { public WaitForSeconds(float s){} }
+    public class WaitForSecondsRealtime : YieldInstruction { public WaitForSecondsRealtime(float s){} }
     public class WaitForEndOfFrame : YieldInstruction {}
     public class GameObject : Object {
         public GameObject(){} public GameObject(string n){} public GameObject(string n, params Type[] t){}

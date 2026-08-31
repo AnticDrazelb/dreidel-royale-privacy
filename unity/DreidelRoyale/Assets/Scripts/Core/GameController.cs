@@ -186,6 +186,19 @@ namespace DreidelRoyale.Core
             Hud.Refresh();
         }
 
+        /// <summary>
+        /// A beat of real time held still. Unscaled deltas everywhere else is what makes this
+        /// safe: the post stack, the audio and the coroutine below all keep their own clock,
+        /// so nothing that must keep moving is frozen with the simulation.
+        /// </summary>
+        IEnumerator HitStop(float seconds)
+        {
+            float restore = Time.timeScale;
+            Time.timeScale = 0.02f;
+            yield return new WaitForSecondsRealtime(seconds);
+            Time.timeScale = restore;
+        }
+
         public IEnumerator Countdown(Action done)
         {
             UI.ShowCountdown("3"); Sfx.Play("tick");
@@ -305,6 +318,13 @@ namespace DreidelRoyale.Core
 
             if (!IsLocalGame && Net != null) Net.BroadcastSpin(totalDelta, final, wobble, duration, power);
 
+            // The release is the one moment the player caused, so it is the one that should
+            // hit hardest: the frame smears outward and the camera lurches in, both scaled by
+            // how long they held. A fixed-size punch on a light tap reads as the game
+            // ignoring them.
+            if (Visual.PostFx.I != null) Visual.PostFx.I.Speed(0.09f + power * 0.13f, duration * 0.55f);
+            UI.PunchFov(-(2.5f + power * 4f), 0.45f);
+
             if (_spinRoutine != null) StopCoroutine(_spinRoutine);
             _spinRoutine = StartCoroutine(PerformSpin(totalDelta, final, wobble, duration, power));
         }
@@ -406,6 +426,16 @@ namespace DreidelRoyale.Core
                 {
                     case "GIMEL":
                         Sfx.Play("gimel");
+                        // The whole point of the game arriving at once: a beat of hit-stop so
+                        // the letter registers before the celebration buries it, the frame
+                        // lifting in the table's own gold, and the camera snapping in.
+                        StartCoroutine(HitStop(0.09f));
+                        if (Visual.PostFx.I != null)
+                        {
+                            Visual.PostFx.I.Flash(Consts.Hsl(45f / 360f, 0.9f, 0.72f), 0.42f, 0.5f);
+                            Visual.PostFx.I.Impact(0.010f);
+                        }
+                        UI.PunchFov(-7f, 0.55f);
                         UI.Fx.Confetti();
                         UI.Fx.FountainGelt(Hud.PotBox, G.Pot);
                         View.Burst();

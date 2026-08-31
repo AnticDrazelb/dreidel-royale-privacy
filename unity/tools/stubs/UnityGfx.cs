@@ -24,6 +24,7 @@ namespace UnityEngine
     public static class Graphics {
         public static void Blit(RenderTexture src, RenderTexture dst){}
         public static void Blit(RenderTexture src, RenderTexture dst, Material m){}
+        public static void Blit(RenderTexture src, RenderTexture dst, Material m, int pass){}
         public static void DrawMesh(Mesh m, Vector3 p, Quaternion q, Material mat, int layer){}
     }
     public class Texture : Object {
@@ -44,12 +45,16 @@ namespace UnityEngine
         public void SetPixel(int x,int y,Color c){}
         public Color GetPixel(int x,int y){return Color.white;}
         public void Apply(){} public void Apply(bool mips){}
+        public static Texture2D blackTexture, whiteTexture;
         public void ReadPixels(Rect r, int x, int y){}
     }
     public class RenderTexture : Texture {
         public RenderTexture(int w,int h,int d){}
         public int antiAliasing;
+        public RenderTextureFormat format;
         public static RenderTexture active;
+        public static RenderTexture GetTemporary(int w,int h,int d){return null;}
+        public static RenderTexture GetTemporary(int w,int h,int d,RenderTextureFormat f){return null;}
         public static RenderTexture GetTemporary(int w,int h,int d,RenderTextureFormat f,RenderTextureReadWrite rw){return null;}
         public static void ReleaseTemporary(RenderTexture rt){}
     }
@@ -72,6 +77,7 @@ namespace UnityEngine
         public void SetInt(string n, int v){}
         public void SetColor(string n, Color c){} public Color GetColor(string n){return Color.white;}
         public void SetTexture(string n, Texture t){} public Texture GetTexture(string n){return null;}
+        public void SetVector(string n, Vector4 v){} public Vector4 GetVector(string n){return default(Vector4);}
         public void SetTextureScale(string n, Vector2 v){} public void SetTextureOffset(string n, Vector2 v){}
         public bool HasProperty(string n){return true;}
         public void EnableKeyword(string k){} public void DisableKeyword(string k){}

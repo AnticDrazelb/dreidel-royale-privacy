@@ -1376,6 +1376,46 @@ namespace DreidelRoyale.UI
                 Toast("Result copied to the clipboard");
         }
 
+        /// <summary>
+        /// A momentary change of field of view, eased back.
+        ///
+        /// Dollying the camera would move it out of the framing every other system assumes;
+        /// changing the lens gets the same lurch without touching the transform, so the
+        /// billboards, the AR rig and the crane shot all stay valid. Negative narrows, which
+        /// is the one that reads as force.
+        /// </summary>
+        public void PunchFov(float degrees, float seconds)
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            if (_fovRoutine != null) StopCoroutine(_fovRoutine);
+            _fovRoutine = StartCoroutine(PunchFovRoutine(cam, degrees, seconds));
+        }
+
+        Coroutine _fovRoutine;
+
+        IEnumerator PunchFovRoutine(Camera cam, float degrees, float seconds)
+        {
+            // The base is read here rather than cached, so a punch that lands during another
+            // one eases back to the real resting lens instead of to a mid-punch value.
+            float base_ = _fovBase > 0f ? _fovBase : (_fovBase = cam.fieldOfView);
+            float t = 0f;
+            while (t < seconds)
+            {
+                t += Time.unscaledDeltaTime;          // must survive a hit-stop
+                float k = Mathf.Clamp01(t / seconds);
+                // Snap in, ease out: the attack is what sells it, the release is what makes
+                // it feel like a camera rather than a wobble.
+                float shape = k < 0.18f ? k / 0.18f : 1f - Mathf.Pow((k - 0.18f) / 0.82f, 0.55f);
+                cam.fieldOfView = base_ + degrees * shape;
+                yield return null;
+            }
+            cam.fieldOfView = base_;
+            _fovRoutine = null;
+        }
+
+        float _fovBase;
+
         /// <summary>The wind-up shakes the whole view - a nudge, not a lurch.</summary>
         public void ShakeScreen(float power) { _shake = power; }
         float _shake;
