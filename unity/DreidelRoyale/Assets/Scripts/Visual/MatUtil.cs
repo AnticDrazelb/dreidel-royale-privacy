@@ -39,6 +39,21 @@ namespace DreidelRoyale.Visual
             }
         }
 
+        static Shader _gem;
+        static bool _gemChecked;
+
+        /// <summary>The clearcoat gem shader, or null where it was stripped from the build.</summary>
+        static Shader GemShader
+        {
+            get
+            {
+                if (_gemChecked) return _gem;
+                _gemChecked = true;
+                _gem = Shader.Find("DreidelRoyale/Gem");
+                return _gem;
+            }
+        }
+
         static Shader Find(params string[] names)
         {
             foreach (var n in names) { var s = Shader.Find(n); if (s != null) return s; }
@@ -71,13 +86,30 @@ namespace DreidelRoyale.Visual
         public static Material Gem(Color color, Color emissive, float opacity, float rough,
                                    float emissiveIntensity = 0.4f)
         {
+            // The clearcoat shader if the project has it, Standard if not. The original's
+            // gems are clearcoat 1.0 at roughness 0.06 over a rough emissive base, which is
+            // two specular lobes; Standard can only give one, so approximating it there means
+            // pushing smoothness up until the single highlight is hard - shiny plastic rather
+            // than a lacquered stone.
+            var gem = GemShader;
+            if (gem != null)
+            {
+                var g = new Material(gem);
+                var gc = color; gc.a = Mathf.Clamp01(opacity);
+                g.SetColor("_Color", gc);
+                g.SetFloat("_Metallic", 0f);
+                g.SetFloat("_Glossiness", Mathf.Clamp01(1f - rough));
+                g.SetFloat("_CoatStrength", 1f);
+                g.SetFloat("_CoatSmoothness", 0.94f);        // the original's clearcoatRoughness 0.06
+                g.SetColor("_EmissionColor", emissive * emissiveIntensity);
+                return g;
+            }
+
             var m = new Material(Standard);
             SetTransparent(m);
             var c = color; c.a = Mathf.Clamp01(opacity);
             m.color = c;
             m.SetFloat("_Metallic", 0f);
-            // clearcoat 1.0 with roughness 0.06 means the surface always keeps a hard
-            // specular; clamp smoothness up so a matte-ish gem still catches the candles.
             m.SetFloat("_Glossiness", Mathf.Clamp01(Mathf.Max(1f - rough, 0.86f)));
             m.EnableKeyword("_EMISSION");
             m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;

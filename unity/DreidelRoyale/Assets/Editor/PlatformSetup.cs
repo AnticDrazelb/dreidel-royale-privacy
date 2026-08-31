@@ -280,6 +280,7 @@ namespace DreidelRoyale.EditorTools
             "Sprites/Default",
             "DreidelRoyale/ShadowCatcher",
             "DreidelRoyale/PostFx",
+            "DreidelRoyale/Gem",
 
             // MatUtil.Additive walks this list in order, and it is every halo, aura, ring
             // and flame in the game. Missing it the first time round meant the fix looked
